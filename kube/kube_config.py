@@ -69,6 +69,14 @@ def get_kube_config_dir_file():
         return {"code": 1, "data": "", "messages": "search kube config file list failure" + str(e), "status": True}
 
 
+def get_key_file_path(env, cluster):
+    """
+    1.传递环境env 和集群名称 返回kubeconfig-本地文件路径
+    """
+    return conf_path + "/kubeconf/{env}_{cluster}.conf".format(env=env, cluster=cluster)
+
+
+
 def get_kube_config_content(env, cluster_name):
     """
     :param env:

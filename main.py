@@ -9,19 +9,19 @@ import uvicorn
 import json
 
 # ops kube func method
-from kube.kube_config import add_kube_config, get_kube_config_content, get_kube_config_dir_file, delete_kubeconfig_file
+from kube.kube_config import add_kube_config, get_kube_config_content, get_key_file_path, get_kube_config_dir_file, delete_kubeconfig_file
 from kube.kube_deployment import k8sDeploymentManager
 from kube.kube_namespace import k8sNameSpaceManager
 from kube.kube_service import k8sServiceManger
-from kube.kube_ingress import k8sIngressManager
+
 
 from sqlalchemy.orm import sessionmaker
 from sql_app.database import engine
-# from sql_app.models import ResetReplicasHistory, MoveK8sData, MoveK8sPlan
+
 
 # db ops deploy and kube config
 from sql_app.ops_log_db_play import query_operate_ops_log, insert_ops_bot_log
-from sql_app.kube_cnfig_db_play import insert_kube_config, updata_kube_config, delete_kube_config, query_kube_config
+from sql_app.kube_cnfig_db_play import insert_kube_config, updata_kube_config, delete_kube_config, query_kube_config, query_kube_env_cluster_all
 from sql_app.kube_deploy_db_play import insert_kube_deployment, updata_kube_deployment, delete_kube_deployment, \
     query_kube_deployment
 
@@ -74,6 +74,7 @@ class updateKubeConfig(BaseModel):
     ca_data: str
     client_crt_data: str
     client_key_data: str
+    client_key_path: str
 
 
 class deleteKubeConfig(BaseModel):
@@ -88,8 +89,8 @@ def get_sys_ops_log(descname: Optional[str] = None, request: Optional[str] = Non
 
 
 @app.get("/v1/kube/config/", summary="get KubeConfig k8s Plan", tags=["ConfigKubernetes"])
-def get_kube_config(env: Optional[str] = None, cluster_name: Optional[str] = None, server_address: Optional[str] = None):
-    result_data = query_kube_config(env, cluster_name, server_address)
+def get_kube_config(env: Optional[str] = None, cluster_name: Optional[str] = None, server_address: Optional[str] = None, client_key_path: Optional[str] = None):
+    result_data = query_kube_config(env, cluster_name, server_address, client_key_path)
     return result_data
 
 
@@ -129,16 +130,21 @@ async def post_kube_config(ReQuest: Request, request_data: KubeConfig):
                                      item_dict.get("ca_data"), item_dict.get("client_crt_data"),
                                      item_dict.get("client_key_data"))
             if result.get("code") == 0:
-                insertInstance = insert_kube_config(
-                    data.get("env"),
-                    data.get('cluster_name'),
-                    data.get('server_address'),
-                    data.get('ca_data'),
-                    data.get("client_crt_data"),
-                    data.get("client_key_data")
-                )
-                insert_ops_bot_log("Insert kube config", json.dumps(userRequestData), "post", json.dumps(insertInstance))
-                return insertInstance
+                result_key_path = get_key_file_path(data.get("env"), data.get('cluster_name'))
+                if result_key_path:
+                    insertInstance = insert_kube_config(
+                        data.get("env"),
+                        data.get('cluster_name'),
+                        data.get('server_address'),
+                        data.get('ca_data'),
+                        data.get("client_crt_data"),
+                        data.get("client_key_data"),
+                        result_key_path
+                    )
+                    insert_ops_bot_log("Insert kube config", json.dumps(userRequestData), "post", json.dumps(insertInstance))
+                    return insertInstance
+                else:
+                    return {"code": 1, "messages": "create kube config file path failure ", "status": True, "data": "failure"}
             else:
                 return {"code": 1, "messages": "create kube config failure ", "status": True, "data": "failure"}
     else:
@@ -148,7 +154,6 @@ async def post_kube_config(ReQuest: Request, request_data: KubeConfig):
 @app.put("/v1/kube/config/", summary="Put KubeConfig K8S Plan", tags=["ConfigKubernetes"])
 async def put_kube_config(ReQuest: Request, request_data: updateKubeConfig):
     item_dict = request_data.dict()
-    from sql_app.models import KubeK8sConfig
     userRequestData = await ReQuest.json()
     from sqlalchemy.orm import sessionmaker, query
     from sql_app.database import engine
@@ -170,7 +175,8 @@ async def put_kube_config(ReQuest: Request, request_data: updateKubeConfig):
                 data.get('server_address'),
                 data.get('ca_data'),
                 data.get("client_crt_data"),
-                data.get("client_key_data")
+                data.get("client_key_data"),
+                data.get("client_key_path")
             )
             insert_ops_bot_log("Update kube config", json.dumps(userRequestData), "put", json.dumps(updateInstance))
             return updateInstance
@@ -183,7 +189,6 @@ async def put_kube_config(ReQuest: Request, request_data: updateKubeConfig):
 @app.delete("/v1/kube/config/", summary="Delete KubeConfig K8S Plan", tags=["ConfigKubernetes"])
 async def delete_kube_config_v1(ReQuest: Request, request_data: deleteKubeConfig):
     item_dict = request_data.dict()
-    from sql_app.models import KubeK8sConfig
     userRequestData = await ReQuest.json()
     data = request_data.dict()
     if data.get("env") and data.get('cluster_name'):
@@ -304,60 +309,66 @@ class deleteDeployK8S(BaseModel):
 
 
 @app.post("/v1/k8s/deployment/plan/", summary="Add deployment App Plan", tags=["DeployKubernetes"])
-async def post_deploy_plan(ReQuest: Request, request_data: CreateDeployK8S):
+def post_deploy_plan(ReQuest: Request, request_data: CreateDeployK8S):
     item_dict = request_data.dict()
     from sql_app.models import DeployK8sData
-    userRequestData = await ReQuest.json()
+    userRequestData = ReQuest.json()
     from sqlalchemy.orm import sessionmaker, query
     from sql_app.database import engine
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
-    result_deploy_name = session.query(DeployK8sData).filter_by(app_name=data.get("app_name")).all()
-    if data.get("env") and data.get('cluster') and data.get('namespace') and data.get("app_name") and data.get(
-            'replicas') and data.get("image") and data.get('client_config_path'):
-        # print("表中集群字段信息result_app_name", result_app_name.env)
-        if result_deploy_name:
-            msg = '''App_info 环境:{env} 集群:{cluster} APP应用: {app_name} existing 提示: 已经存在,不允许覆盖操作!'''.format(
-                env=data.get("env"),
-                cluster=data.get("cluster"), app_name=data.get("app_name"))
-            return {"code": 1, "data": msg, "message": "App_info Record already exists", "status": True}
-        else:
-            deploy_env = data.get("deploy_env")
-            deployEnv = {}
-            try:
-                for deploy_env in deploy_env.split(","):
-                    k = deploy_env.split("=")[0]
-                    v = deploy_env.split("=")[1]
-                    deployEnv[k] = v
-            except Exception as e:
-                msg = "Failed to create Deployment  because the deploy env format is incorrect"
-                return {"code": 1, "data": str(e), "message": msg, "status": True}
-
-            insert_deploy_instance = k8sDeploymentManager(data.get('client_config_path'),
-                                                          data.get('namespace'))
-            insert_result_data = insert_deploy_instance.create_kube_deployment(data.get('namespace'), data.get("app_name"),
-                                                                               data.get("resources"), data.get("replicas"),
-                                                                               data.get("image"), deployEnv, data.get("ports")
-                                                                               )
-            if insert_result_data.get("code") == 0:
-                result = insert_kube_deployment(item_dict.get("app_name"), item_dict.get("env"),
-                                                item_dict.get("cluster"), item_dict.get("namespace"),
-                                                item_dict.get("resources"), item_dict.get("replicas"), item_dict.get("image"),
-                                                item_dict.get("affinity"), item_dict.get("ant_affinity"),
-                                                item_dict.get("deploy_env"),
-                                                item_dict.get("ports"), item_dict.get("volumeMounts"), item_dict.get("volume"),
-                                                item_dict.get("image_pull_secrets"), item_dict.get("health_liven_ess"),
-                                                item_dict.get("health_readiness"), "")
-                if result.get("code") == 0:
-                    insert_ops_bot_log("Insert kube deploy app ", json.dumps(userRequestData), "post", json.dumps(result))
-                    return result
-                else:
-                    return {"code": 1, "messages": "create kube deploy app failure ", "status": True, "data": "failure"}
+    result_Cluster_Info = query_kube_env_cluster_all()
+    clusterList = result_Cluster_Info.get("env")
+    print("环境存在", clusterList)
+    if data.get("env") in clusterList:
+        result_deploy_name = session.query(DeployK8sData).filter_by(app_name=data.get("app_name")).all()
+        if data.get('cluster') and data.get('namespace') and data.get("app_name") and data.get(
+                'replicas') and data.get("image") and data.get('client_config_path'):
+            # print("表中集群字段信息result_app_name", result_app_name.env)
+            if result_deploy_name:
+                msg = '''App_info 环境:{env} 集群:{cluster} APP应用: {app_name} existing 提示: 已经存在,不允许覆盖操作!'''.format(
+                    env=data.get("env"),
+                    cluster=data.get("cluster"), app_name=data.get("app_name"))
+                return {"code": 1, "data": msg, "message": "App_info Record already exists", "status": True}
             else:
-                return insert_result_data
+                deploy_env = data.get("deploy_env")
+                deployEnv = {}
+                try:
+                    for deploy_env in deploy_env.split(","):
+                        k = deploy_env.split("=")[0]
+                        v = deploy_env.split("=")[1]
+                        deployEnv[k] = v
+                except Exception as e:
+                    msg = "Failed to create Deployment  because the deploy env format is incorrect"
+                    return {"code": 1, "data": str(e), "message": msg, "status": True}
+
+                insert_deploy_instance = k8sDeploymentManager(data.get('client_config_path'),
+                                                              data.get('namespace'))
+                insert_result_data = insert_deploy_instance.create_kube_deployment(data.get('namespace'), data.get("app_name"),
+                                                                                   data.get("resources"), data.get("replicas"),
+                                                                                   data.get("image"), deployEnv, data.get("ports")
+                                                                                   )
+                if insert_result_data.get("code") == 0:
+                    result = insert_kube_deployment(item_dict.get("app_name"), item_dict.get("env"),
+                                                    item_dict.get("cluster"), item_dict.get("namespace"),
+                                                    item_dict.get("resources"), item_dict.get("replicas"), item_dict.get("image"),
+                                                    item_dict.get("affinity"), item_dict.get("ant_affinity"),
+                                                    item_dict.get("deploy_env"),
+                                                    item_dict.get("ports"), item_dict.get("volumeMounts"), item_dict.get("volume"),
+                                                    item_dict.get("image_pull_secrets"), item_dict.get("health_liven_ess"),
+                                                    item_dict.get("health_readiness"), "")
+                    if result.get("code") == 0:
+                        insert_ops_bot_log("Insert kube deploy app ", json.dumps(userRequestData), "post", json.dumps(result))
+                        return result
+                    else:
+                        return {"code": 1, "messages": "create kube deploy app failure ", "status": True, "data": "failure"}
+                else:
+                    return insert_result_data
+        else:
+            return {'code': 1, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
     else:
-        return {'code': 1, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
+        return {'code': 1, 'messages': "Configure the {name} env cluster to be in use first".format(name=data.get("env")), "data": "", "status": False}
 
 
 @app.put("/v1/k8s/deployment/plan/", summary="Change deployment App Plan", tags=["DeployKubernetes"])

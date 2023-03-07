@@ -7,3 +7,8 @@ nacos_config = {"nacos_server_address": "http://localhost:8848",
                 "password": "nacos",
                 "group": "DEFAULT_GROUP"
                 }
+
+queryClusterURL = "http://0.0.0.0:8888/v1/kube/config/"
+
+
+

@@ -141,6 +141,7 @@ class KubeK8sConfig(Base):
     ca_data = Column(Text, nullable=True, comment="CA证书")
     client_crt_data = Column(Text, nullable=True, comment="crt证书")
     client_key_data = Column(Text, nullable=True, comment="key密钥")
+    client_key_path = Column(Text, nullable=True, comment="证书文件路径")
     create_time = Column(DateTime, server_default=func.now(), comment="创建时间")
 
     @property
@@ -152,6 +153,7 @@ class KubeK8sConfig(Base):
                 "ca_data": self.ca_data,
                 "client_crt_data": self.client_crt_data,
                 "client_key_data": self.client_key_data,
+                "client_key_path": self.client_key_path,
                 "create_time": self.create_time.strftime(STRFTIME_FORMAT)
                 }
 

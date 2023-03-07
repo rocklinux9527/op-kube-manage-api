@@ -112,7 +112,6 @@ def query_kube_env_cluster_all():
     from tools.config import queryClusterURL
     sp = requests.get(queryClusterURL)
     try:
-        sp.close()
         data = dict()
         envs = list(set([i.get("env") for i in sp.json().get("data")]))
         data["env"] = envs

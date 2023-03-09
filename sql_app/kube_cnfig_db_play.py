@@ -39,7 +39,8 @@ def insert_kube_config(env, cluster_name, server_address, ca_data, client_crt_da
     return model_create(KubeK8sConfig, request_data, fildes)
 
 
-def updata_kube_config(Id, env, cluster_name, server_address, ca_data, client_crt_data, client_key_data, client_key_path):
+def updata_kube_config(Id, env, cluster_name, server_address, ca_data, client_crt_data, client_key_data,
+                       client_key_path):
     """
     1.修改kube config 配置入库
     :param Id:
@@ -67,7 +68,7 @@ def updata_kube_config(Id, env, cluster_name, server_address, ca_data, client_cr
         "ca_data": ca_data,
         "client_crt_data": client_crt_data,
         "client_key_data": client_key_data,
-        "client_key_path":  client_key_path
+        "client_key_path": client_key_path
     }
     return model_updateId(KubeK8sConfig, Id, request_data, fildes)
 
@@ -122,5 +123,6 @@ def query_kube_env_cluster_all():
         return data
     except Exception as e:
         return str(e), False
-    sp.close()
+    finally:
+        sp.close()
 

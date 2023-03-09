@@ -109,11 +109,11 @@ def get_kube_config_file_list():
 
 @app.post("/v1/kube/config/", summary="Add KubeConfig K8S Plan", tags=["ConfigKubernetes"])
 async def post_kube_config(ReQuest: Request, request_data: KubeConfig):
-    item_dict = request_data.dict()
-    from sql_app.models import KubeK8sConfig
-    userRequestData = await ReQuest.json()
     from sqlalchemy.orm import sessionmaker, query
     from sql_app.database import engine
+    from sql_app.models import KubeK8sConfig
+    item_dict = request_data.dict()
+    userRequestData = await ReQuest.json()
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
@@ -121,7 +121,6 @@ async def post_kube_config(ReQuest: Request, request_data: KubeConfig):
                                                              cluster_name=data.get('cluster_name')).first()
     if data.get("env") and data.get('cluster_name') and data.get('server_address') and data.get("ca_data") and data.get(
             'client_crt_data') and data.get("client_key_data"):
-        # print("表中集群字段信息result_app_name", result_app_name.env)
         if result_app_name:
             msg = '''cluster_info 环境:{env} 集群名称:{cluster} existing 提示: 已经存在,不允许覆盖操作!'''.format(
                 env=data.get("env"),
@@ -236,11 +235,11 @@ def get_db_namespace_plan():
 
 @app.post("/v1/db/k8s/ns/plan/", summary="Add namespace App Plan", tags=["NamespaceKubernetes"])
 async def post_namespace_plan(ReQuest: Request, request_data: createNameSpace):
-    item_dict = request_data.dict()
-    from sql_app.models import DeployNsData
-    userRequestData = await ReQuest.json()
     from sqlalchemy.orm import sessionmaker, query
     from sql_app.database import engine
+    from sql_app.models import DeployNsData
+    item_dict = request_data.dict()
+    userRequestData = await ReQuest.json()
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
@@ -318,11 +317,11 @@ class deleteDeployK8S(BaseModel):
 
 @app.post("/v1/k8s/deployment/plan/", summary="Add deployment App Plan", tags=["DeployKubernetes"])
 def post_deploy_plan(ReQuest: Request, request_data: CreateDeployK8S):
-    item_dict = request_data.dict()
     from sql_app.models import DeployK8sData
-    userRequestData = ReQuest.json()
     from sqlalchemy.orm import sessionmaker, query
     from sql_app.database import engine
+    item_dict = request_data.dict()
+    userRequestData = ReQuest.json()
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
@@ -405,10 +404,10 @@ def post_deploy_plan(ReQuest: Request, request_data: CreateDeployK8S):
 
 @app.put("/v1/k8s/deployment/plan/", summary="Change deployment App Plan", tags=["DeployKubernetes"])
 async def put_deploy_plan(ReQuest: Request, request_data: UpdateDeployK8S):
-    item_dict = request_data.dict()
-    userRequestData = await ReQuest.json()
     from sqlalchemy.orm import sessionmaker, query
     from sql_app.database import engine
+    item_dict = request_data.dict()
+    userRequestData = await ReQuest.json()
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
@@ -498,11 +497,12 @@ class deleteSvcK8S(BaseModel):
 
 @app.post("/v1/k8s/service/plan/", summary="Add Service App Plan", tags=["ServiceKubernetes"])
 async def post_service_plan(ReQuest: Request, request_data: CreateSvcK8S):
-    item_dict = request_data.dict()
     from sql_app.models import ServiceK8sData
-    userRequestData = await ReQuest.json()
     from sqlalchemy.orm import sessionmaker, query
     from sql_app.database import engine
+    item_dict = request_data.dict()
+    userRequestData = await ReQuest.json()
+
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
@@ -551,10 +551,10 @@ async def post_service_plan(ReQuest: Request, request_data: CreateSvcK8S):
 
 @app.put("/v1/k8s/service/plan/", summary="Change Service App Plan", tags=["ServiceKubernetes"])
 async def put_service_plan(ReQuest: Request, request_data: UpdateSvcK8S):
-    item_dict = request_data.dict()
-    userRequestData = await ReQuest.json()
     from sqlalchemy.orm import sessionmaker, query
     from sql_app.database import engine
+    item_dict = request_data.dict()
+    userRequestData = await ReQuest.json()
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
@@ -653,11 +653,12 @@ class deleteIngressK8S(BaseModel):
 
 @app.post("/v1/k8s/ingress/plan/", summary="Add Ingress App Plan", tags=["IngressKubernetes"])
 async def post_ingress_plan(ReQuest: Request, request_data: CreateIngressK8S):
-    item_dict = request_data.dict()
     from sql_app.models import IngressK8sData
-    userRequestData = await ReQuest.json()
     from sqlalchemy.orm import sessionmaker, query
     from sql_app.database import engine
+    item_dict = request_data.dict()
+    userRequestData = await ReQuest.json()
+
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
@@ -700,10 +701,9 @@ async def post_ingress_plan(ReQuest: Request, request_data: CreateIngressK8S):
 @app.put("/v1/k8s/ingress/plan/", summary="Change Ingress App Plan", tags=["IngressKubernetes"])
 async def put_ingress_plan(ReQuest: Request, request_data: UpdateIngressK8S):
     item_dict = request_data.dict()
-    from sql_app.models import IngressK8sData
-    userRequestData = await ReQuest.json()
     from sqlalchemy.orm import sessionmaker, query
     from sql_app.database import engine
+    userRequestData = await ReQuest.json()
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
@@ -758,8 +758,8 @@ def get_sys_ingress_plan(client_config_path: Optional[str]):
 
 @app.delete("/v1/k8s/ingress/plan/", summary="Delete Ingress App Plan", tags=["IngressKubernetes"])
 async def del_ingress_plan(ReQuest: Request, request_data: deleteIngressK8S):
-    item_dict = request_data.dict()
     from sql_app.models import IngressK8sData
+    item_dict = request_data.dict()
     userRequestData = await ReQuest.json()
     data = request_data.dict()
     if data.get("ingress_name") and data.get('namespace') and data.get('client_config_path'):

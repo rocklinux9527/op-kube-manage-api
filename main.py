@@ -329,74 +329,78 @@ def post_deploy_plan(ReQuest: Request, request_data: CreateDeployK8S):
     result_Cluster_Info = query_kube_env_cluster_all()
     envListData = result_Cluster_Info.get("env")
     clusterListData = result_Cluster_Info.get("cluster")
-    key_name = data.get("env")
-    cluster_list = [i.get(key_name) for i in clusterListData if i.get(key_name)]
-    if data.get("env") in envListData:
-        if data.get("cluster") in cluster_list:
-            result_deploy_name = session.query(DeployK8sData).filter_by(app_name=data.get("app_name")).all()
-            if data.get('namespace') and data.get("app_name") and data.get(
-                    'replicas') and data.get("image") and data.get('client_config_path'):
-                if result_deploy_name:
-                    msg = '''App_info 环境:{env} 集群:{cluster} APP应用: {app_name} existing 提示: 已经存在,不允许覆盖操作!'''.format(
-                        env=data.get("env"),
-                        cluster=data.get("cluster"), app_name=data.get("app_name"))
-                    return {"code": 1, "data": msg, "message": "App_info Record already exists", "status": True}
-                else:
-                    deploy_env = data.get("deploy_env")
-                    deployEnv = {}
-                    try:
-                        for deploy_env in deploy_env.split(","):
-                            k = deploy_env.split("=")[0]
-                            v = deploy_env.split("=")[1]
-                            deployEnv[k] = v
-                    except Exception as e:
-                        msg = "Failed to create Deployment  because the deploy env format is incorrect"
-                        return {"code": 1, "data": str(e), "message": msg, "status": True}
-
-                    insert_deploy_instance = k8sDeploymentManager(data.get('client_config_path'),
-                                                                  data.get('namespace'))
-                    insert_result_data = insert_deploy_instance.create_kube_deployment(data.get('namespace'),
-                                                                                       data.get("app_name"),
-                                                                                       data.get("resources"),
-                                                                                       data.get("replicas"),
-                                                                                       data.get("image"), deployEnv,
-                                                                                       data.get("ports")
-                                                                                       )
-                    if insert_result_data.get("code") == 0:
-                        result = insert_kube_deployment(item_dict.get("app_name"), item_dict.get("env"),
-                                                        item_dict.get("cluster"), item_dict.get("namespace"),
-                                                        item_dict.get("resources"), item_dict.get("replicas"),
-                                                        item_dict.get("image"),
-                                                        item_dict.get("affinity"), item_dict.get("ant_affinity"),
-                                                        item_dict.get("deploy_env"),
-                                                        item_dict.get("ports"), item_dict.get("volumeMounts"),
-                                                        item_dict.get("volume"),
-                                                        item_dict.get("image_pull_secrets"),
-                                                        item_dict.get("health_liven_ess"),
-                                                        item_dict.get("health_readiness"), "")
-                        if result.get("code") == 0:
-                            insert_ops_bot_log("Insert kube deploy app ", json.dumps(userRequestData), "post",
-                                               json.dumps(result))
-                            return result
-                        else:
-                            return {"code": 1, "messages": "create kube deploy app failure ", "status": True,
-                                    "data": "failure"}
+    if data.get("cluster") and data.get("env"):
+        key_name = data.get("env")
+        cluster_list = [i.get(key_name) for i in clusterListData if i.get(key_name)]
+        if data.get("env") in envListData:
+            if data.get("cluster") in cluster_list:
+                result_deploy_name = session.query(DeployK8sData).filter_by(app_name=data.get("app_name")).all()
+                if data.get('namespace') and data.get("app_name") and data.get(
+                        'replicas') and data.get("image") and data.get('client_config_path'):
+                    if result_deploy_name:
+                        msg = '''App_info 环境:{env} 集群:{cluster} APP应用: {app_name} existing 提示: 已经存在,不允许覆盖操作!'''.format(
+                            env=data.get("env"),
+                            cluster=data.get("cluster"), app_name=data.get("app_name"))
+                        return {"code": 1, "data": msg, "message": "App_info Record already exists", "status": True}
                     else:
-                        return insert_result_data
+                        deploy_env = data.get("deploy_env")
+                        deployEnv = {}
+                        try:
+                            for deploy_env in deploy_env.split(","):
+                                k = deploy_env.split("=")[0]
+                                v = deploy_env.split("=")[1]
+                                deployEnv[k] = v
+                        except Exception as e:
+                            msg = "Failed to create Deployment  because the deploy env format is incorrect"
+                            return {"code": 1, "data": str(e), "message": msg, "status": True}
+
+                        insert_deploy_instance = k8sDeploymentManager(data.get('client_config_path'),
+                                                                      data.get('namespace'))
+                        insert_result_data = insert_deploy_instance.create_kube_deployment(data.get('namespace'),
+                                                                                           data.get("app_name"),
+                                                                                           data.get("resources"),
+                                                                                           data.get("replicas"),
+                                                                                           data.get("image"), deployEnv,
+                                                                                           data.get("ports")
+                                                                                           )
+                        if insert_result_data.get("code") == 0:
+                            result = insert_kube_deployment(item_dict.get("app_name"), item_dict.get("env"),
+                                                            item_dict.get("cluster"), item_dict.get("namespace"),
+                                                            item_dict.get("resources"), item_dict.get("replicas"),
+                                                            item_dict.get("image"),
+                                                            item_dict.get("affinity"), item_dict.get("ant_affinity"),
+                                                            item_dict.get("deploy_env"),
+                                                            item_dict.get("ports"), item_dict.get("volumeMounts"),
+                                                            item_dict.get("volume"),
+                                                            item_dict.get("image_pull_secrets"),
+                                                            item_dict.get("health_liven_ess"),
+                                                            item_dict.get("health_readiness"), "")
+                            if result.get("code") == 0:
+                                insert_ops_bot_log("Insert kube deploy app ", json.dumps(userRequestData), "post",
+                                                   json.dumps(result))
+                                return result
+                            else:
+                                return {"code": 1, "messages": "create kube deploy app failure ", "status": True,
+                                        "data": "failure"}
+                        else:
+                            return insert_result_data
+                else:
+                    return {'code': 1, 'messages': "If the parameter is insufficient, check it", "data": "",
+                            "status": False}
             else:
-                return {'code': 1, 'messages': "If the parameter is insufficient, check it", "data": "",
-                        "status": False}
+                return {'code': 1,
+                        'messages': "Configure the {name} env {cluster} to be in use first".format(name=data.get("env"),
+                                                                                                   cluster=data.get(
+                                                                                                       "cluster")),
+                        "data": "", "status": False}
         else:
             return {'code': 1,
                     'messages': "Configure the {name} env {cluster} to be in use first".format(name=data.get("env"),
-                                                                                               cluster=data.get(
-                                                                                                   "cluster")),
+                                                                                               cluster=data.get("cluster")),
                     "data": "", "status": False}
     else:
         return {'code': 1,
-                'messages': "Configure the {name} env {cluster} to be in use first".format(name=data.get("env"),
-                                                                                           cluster=data.get("cluster")),
-                "data": "", "status": False}
+                'messages': "The cluster or environment does not exist use", "data": "", "status": False}
 
 
 @app.put("/v1/k8s/deployment/plan/", summary="Change deployment App Plan", tags=["DeployKubernetes"])

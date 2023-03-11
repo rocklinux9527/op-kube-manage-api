@@ -244,26 +244,27 @@ async def post_namespace_plan(ReQuest: Request, request_data: createNameSpace):
     session = SessionLocal()
     data = request_data.dict()
     result_ns_name = session.query(DeployNsData).filter_by(ns_name=data.get("ns_name")).all()
-    if data.get("ns_name") and data.get('used'):
-        if result_ns_name:
-            msg = '''Namespace_info namespace: {ns_name} existing 提示: 已经存在,不允许覆盖操作!'''.format(
-                ns_name=data.get("ns_name"))
-            return {"code": 1, "data": msg, "message": "Namespace_info Record already exists", "status": True}
-        else:
-            insert_ns_instance = k8sNameSpaceManager(data.get('client_config_path'))
-            insert_result_data = insert_ns_instance.create_kube_namespaces(data.get("ns_name"))
-            if insert_result_data.get("code") == 0:
-                result = insert_db_ns(item_dict.get("ns_name"), item_dict.get("used"))
-                if result.get("code") == 0:
-                    insert_ops_bot_log("Insert kube namespace ", json.dumps(userRequestData), "post",
-                                       json.dumps(result))
-                    return result
-                else:
-                    return {"code": 1, "messages": "create kube namespace  failure ", "status": True, "data": "failure"}
-            else:
-                return insert_result_data
-    else:
+    namespace_name = data.get("ns_name")
+    used_name = data.get('used')
+    if not (cluster_name and env_name):
         return {'code': 1, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
+    if result_ns_name:
+        msg = '''Namespace_info namespace: {ns_name} existing 提示: 已经存在,不允许覆盖操作!'''.format(
+            ns_name=namespace_name)
+        return {"code": 1, "data": msg, "message": "Namespace_info Record already exists", "status": True}
+    else:
+        insert_ns_instance = k8sNameSpaceManager(data.get('client_config_path'))
+        insert_result_data = insert_ns_instance.create_kube_namespaces(data.get("ns_name"))
+        if insert_result_data.get("code") == 0:
+            result = insert_db_ns(item_dict.get("ns_name"), item_dict.get("used"))
+            if result.get("code") == 0:
+                insert_ops_bot_log("Insert kube namespace ", json.dumps(userRequestData), "post",
+                                   json.dumps(result))
+                return result
+            else:
+                return {"code": 1, "messages": "create kube namespace  failure ", "status": True, "data": "failure"}
+        else:
+            return insert_result_data
 
 
 class CreateDeployK8S(BaseModel):
@@ -330,11 +331,10 @@ def post_deploy_plan(ReQuest: Request, request_data: CreateDeployK8S):
     clusterListData = result_Cluster_Info.get("cluster")
     cluster_name = data.get("cluster")
     env_name = data.get("env")
-
     if not (cluster_name and env_name):
         return {'code': 1,
                 'messages': "The cluster or environment does not exist use", "data": "", "status": False}
-    key_name = data.get("env")
+    key_name = env_name
     cluster_list = [i.get(key_name) for i in clusterListData if i.get(key_name)]
     if env_name in envListData:
         if cluster_name in cluster_list:
@@ -454,19 +454,21 @@ async def del_deploy_plan(ReQuest: Request, request_data: deleteKubeConfig):
     item_dict = request_data.dict()
     userRequestData = await ReQuest.json()
     data = request_data.dict()
-    if data.get("app_name") and data.get('namespace') and data.get('client_config_path'):
-        delete_deploy_instance = k8sDeploymentManager(data.get('client_config_path'), data.get('namespace'))
-        result_data = delete_deploy_instance.delete_kube_deployment(data.get('namespace'), data.get("app_name"))
-        if result_data.get("code") == 0:
-            deleteInstance = deleteDeployK8S(data.get("id"))
-            insert_ops_bot_log("Delete kube Deploy App", json.dumps(userRequestData), "delete",
-                               json.dumps(deleteInstance))
-            return deleteInstance
-        else:
-            return {"code": 1, "messages": "delete deploy App  failure ", "status": True, "data": "failure"}
-    else:
+    app_name = data.get("app_name")
+    namespace_name = data.get('namespace')
+    client_config_path = data.get('client_config_path')
+    if not (app_name and namespace_name and client_config_path):
         return {"code": 1, "messages": "Delete deploy App failure, Incorrect parameters", "status": True,
                 "data": "failure"}
+    delete_deploy_instance = k8sDeploymentManager(client_config_path, namespace_name)
+    result_data = delete_deploy_instance.delete_kube_deployment(namespace_name, app_name)
+    if result_data.get("code") == 0:
+        deleteInstance = deleteDeployK8S(data.get("id"))
+        insert_ops_bot_log("Delete kube Deploy App", json.dumps(userRequestData), "delete",
+                           json.dumps(deleteInstance))
+        return deleteInstance
+    else:
+        return {"code": 1, "messages": "delete deploy App  failure ", "status": True, "data": "failure"}
 
 
 class CreateSvcK8S(BaseModel):
@@ -504,51 +506,53 @@ async def post_service_plan(ReQuest: Request, request_data: CreateSvcK8S):
     from sql_app.database import engine
     item_dict = request_data.dict()
     userRequestData = await ReQuest.json()
-
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
-    result_svc_name = session.query(ServiceK8sData).filter_by(svc_name=data.get("svc_name")).all()
-    if data.get("namespace") and data.get('svc_name') and data.get("selector_labels") and data.get(
-            'svc_port') and data.get(
-        'target_port') and data.get('client_config_path'):
-        if result_svc_name:
-            msg = '''Service_info  Service: {svc_name} existing 提示: 已经存在,不允许覆盖操作!'''.format(
-                svc_name=data.get("svc_name"))
-            return {"code": 1, "data": msg, "message": "Service_info Record already exists", "status": True}
-        else:
-            insert_svc_instance = k8sServiceManger(data.get('client_config_path'))
-            selector_labels = data.get("selector_labels")
-            labels = {}
-            try:
-                for sl in selector_labels.split(","):
-                    k = sl.split("=")[0]
-                    v = sl.split("=")[1]
-                    labels[k] = v
-            except Exception as e:
-                msg = "Failed to create SVC because the label format is incorrect"
-                return {"code": 1, "data": str(e), "message": msg, "status": True}
-
-            insert_result_data = insert_svc_instance.create_kube_svc(data.get('namespace'), data.get("svc_name"),
-                                                                     labels,
-                                                                     data.get("svc_port"), data.get("target_port"),
-                                                                     data.get("svc_type"))
-            if insert_result_data.get("code") == 0:
-                result = insert_db_svc(item_dict.get("namespace"),
-                                       item_dict.get("svc_name"),
-                                       item_dict.get("selector_labels"),
-                                       item_dict.get("svc_port"),
-                                       item_dict.get("svc_type"),
-                                       item_dict.get("target_port"))
-                if result.get("code") == 0:
-                    insert_ops_bot_log("Insert kube service app ", json.dumps(userRequestData), "post",
-                                       json.dumps(result))
-                    return result
-                else:
-                    return {"code": 1, "messages": "create kube service app failure ", "status": True,
-                            "data": "failure"}
-    else:
+    namespace_name = data.get("namespace")
+    svc_name = data.get('svc_name')
+    selector_labels = data.get("selector_labels")
+    svc_port = data.get('svc_port')
+    target_port = data.get('target_port')
+    client_config_path = data.get('client_config_path')
+    if not (namespace_name and svc_name and selector_labels and svc_port and target_port and client_config_path):
         return {'code': 1, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
+    result_svc_name = session.query(ServiceK8sData).filter_by(svc_name=data.get("svc_name")).all()
+    if result_svc_name:
+        msg = '''Service_info  Service: {svc_name} existing 提示: 已经存在,不允许覆盖操作!'''.format(
+            svc_name=data.get("svc_name"))
+        return {"code": 1, "data": msg, "message": "Service_info Record already exists", "status": True}
+    else:
+        insert_svc_instance = k8sServiceManger(data.get('client_config_path'))
+        selector_labels = data.get("selector_labels")
+        labels = {}
+        try:
+            for sl in selector_labels.split(","):
+                k = sl.split("=")[0]
+                v = sl.split("=")[1]
+                labels[k] = v
+        except Exception as e:
+            msg = "Failed to create SVC because the label format is incorrect"
+            return {"code": 1, "data": str(e), "message": msg, "status": True}
+
+        insert_result_data = insert_svc_instance.create_kube_svc(data.get('namespace'), data.get("svc_name"),
+                                                                 labels,
+                                                                 data.get("svc_port"), data.get("target_port"),
+                                                                 data.get("svc_type"))
+        if insert_result_data.get("code") == 0:
+            result = insert_db_svc(item_dict.get("namespace"),
+                                   item_dict.get("svc_name"),
+                                   item_dict.get("selector_labels"),
+                                   item_dict.get("svc_port"),
+                                   item_dict.get("svc_type"),
+                                   item_dict.get("target_port"))
+            if result.get("code") == 0:
+                insert_ops_bot_log("Insert kube service app ", json.dumps(userRequestData), "post",
+                                   json.dumps(result))
+                return result
+            else:
+                return {"code": 1, "messages": "create kube service app failure ", "status": True,
+                        "data": "failure"}
 
 
 @app.put("/v1/k8s/service/plan/", summary="Change Service App Plan", tags=["ServiceKubernetes"])
@@ -560,32 +564,38 @@ async def put_service_plan(ReQuest: Request, request_data: UpdateSvcK8S):
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
-    if data.get("env") and data.get('cluster') and data.get('namespace') and data.get("app_name") and data.get(
-            'replicas') and data.get("image") and data.get('client_config_path'):
-        update_deploy_instance = k8sDeploymentManager(data.get('client_config_path'),
-                                                      data.get('namespace'))
-        data_result = update_deploy_instance.replace_kube_deployment(data.get('deployment_name'),
-                                                                     data.get('replicas'),
-                                                                     data.get("image"),
-                                                                     data.get('namespace')
-                                                                     )
-        if data_result.get("code") == 0:
-            result = updata_kube_deployment(
-                item_dict.get("id"),
-                item_dict.get("app_name"), item_dict.get("env"),
-                item_dict.get("cluster"), item_dict.get("namespace"),
-                item_dict.get("resources"), item_dict.get("replicas"), item_dict.get("image"),
-                item_dict.get("affinity"), item_dict.get("ant_affinity"), item_dict.get("deploy_env"),
-                item_dict.get("ports"), item_dict.get("volumeMounts"), item_dict.get("volume"),
-                item_dict.get("image_pull_secrets"), item_dict.get("health_liven_ess"),
-                item_dict.get("health_readiness"), "")
-            if result.get("code") == 0:
-                insert_ops_bot_log("Update kube deploy app ", json.dumps(userRequestData), "post", json.dumps(result))
-                return result
-        else:
-            return {"code": 1, "messages": "update kube deploy app failure ", "status": True, "data": "failure"}
-    else:
+    env_name = data.get("env")
+    cluster_name = data.get('cluster')
+    namespace_name = data.get("namespace")
+    app_name = data.get("app_name")
+    replicas = data.get('replicas')
+    image_name = data.get('image')
+    client_config_path = data.get('client_config_path')
+
+    if not (env_name and cluster_name and namespace_name and app_name and replicas and image_name and client_config_path):
         return {'code': 1, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
+    update_deploy_instance = k8sDeploymentManager(data.get('client_config_path'),
+                                                  data.get('namespace'))
+    data_result = update_deploy_instance.replace_kube_deployment(data.get('deployment_name'),
+                                                                 data.get('replicas'),
+                                                                 data.get("image"),
+                                                                 data.get('namespace')
+                                                                 )
+    if data_result.get("code") == 0:
+        result = updata_kube_deployment(
+            item_dict.get("id"),
+            item_dict.get("app_name"), item_dict.get("env"),
+            item_dict.get("cluster"), item_dict.get("namespace"),
+            item_dict.get("resources"), item_dict.get("replicas"), item_dict.get("image"),
+            item_dict.get("affinity"), item_dict.get("ant_affinity"), item_dict.get("deploy_env"),
+            item_dict.get("ports"), item_dict.get("volumeMounts"), item_dict.get("volume"),
+            item_dict.get("image_pull_secrets"), item_dict.get("health_liven_ess"),
+            item_dict.get("health_readiness"), "")
+        if result.get("code") == 0:
+            insert_ops_bot_log("Update kube deploy app ", json.dumps(userRequestData), "post", json.dumps(result))
+            return result
+    else:
+        return {"code": 1, "messages": "update kube deploy app failure ", "status": True, "data": "failure"}
 
 
 @app.get("/v1/k8s/service/plan/", summary="Get Service App Plan", tags=["ServiceKubernetes"])
@@ -600,19 +610,21 @@ async def del_service_plan(ReQuest: Request, request_data: deleteSvcK8S):
     item_dict = request_data.dict()
     userRequestData = await ReQuest.json()
     data = request_data.dict()
-    if data.get("app_name") and data.get('namespace') and data.get('client_config_path'):
-        delete_deploy_instance = k8sDeploymentManager(data.get('client_config_path'), data.get('namespace'))
-        result_data = delete_deploy_instance.delete_kube_deployment(data.get('namespace'), data.get("app_name"))
-        if result_data.get("code") == 0:
-            deleteInstance = deleteDeployK8S(data.get("id"))
-            insert_ops_bot_log("Delete kube Deploy App", json.dumps(userRequestData), "delete",
-                               json.dumps(deleteInstance))
-            return deleteInstance
-        else:
-            return {"code": 1, "messages": "delete deploy App  failure ", "status": True, "data": "failure"}
-    else:
+    app_name = data.get("app_name")
+    namespace_name = data.get('namespace')
+    client_config_path = data.get('client_config_path')
+    if not (app_name and namespace_name and client_config_path):
         return {"code": 1, "messages": "Delete deploy App failure, Incorrect parameters", "status": True,
                 "data": "failure"}
+    delete_deploy_instance = k8sDeploymentManager(data.get('client_config_path'), data.get('namespace'))
+    result_data = delete_deploy_instance.delete_kube_deployment(data.get('namespace'), data.get("app_name"))
+    if result_data.get("code") == 0:
+        deleteInstance = deleteDeployK8S(data.get("id"))
+        insert_ops_bot_log("Delete kube Deploy App", json.dumps(userRequestData), "delete",
+                           json.dumps(deleteInstance))
+        return deleteInstance
+    else:
+        return {"code": 1, "messages": "delete deploy App  failure ", "status": True, "data": "failure"}
 
 
 class CreateIngressK8S(BaseModel):
@@ -664,40 +676,45 @@ async def post_ingress_plan(ReQuest: Request, request_data: CreateIngressK8S):
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
-    result_ingress_name = session.query(IngressK8sData).filter_by(ingress_name=data.get("ingress_name")).all()
-    if data.get("namespace") and data.get('ingress_name') and data.get('host') and data.get(
-            'svc_name') and data.get("svc_port") and data.get('client_config_path') and data.get("used"):
-        if result_ingress_name:
-            msg = '''Ingress_info  Service: {ingress_name} existing 提示: 已经存在,不允许覆盖操作!'''.format(
-                ingress_name=data.get("ingress_name"))
-            return {"code": 1, "data": msg, "message": "ingress_info Record already exists", "status": True}
-        else:
-            insert_ingress_instance = k8sIngressManager(data.get('client_config_path'), data.get('namespace'))
-            insert_result_data = insert_ingress_instance.create_kube_ingress(data.get('ingress_name'),
-                                                                             data.get("host"),
-                                                                             data.get("svc_name"),
-                                                                             data.get("svc_port"),
-                                                                             data.get("path"),
-                                                                             data.get("path_type"),
-                                                                             data.get("ingress_class_name"),
-                                                                             data.get("tls"),
-                                                                             data.get("tls_secret")
-                                                                             )
-            if insert_result_data.get("code") == 0:
-                result = insert_db_ingress(item_dict.get("namespace"), data.get('ingress_name'), item_dict.get("host"),
-                                           item_dict.get("svc_name"),
-                                           item_dict.get("path"), item_dict.get("path_type"),
-                                           item_dict.get("ingress_class_name"), item_dict.get("tls"),
-                                           item_dict.get("tls_secret"),
-                                           item_dict.get("svc_port"), item_dict.get("used"))
-                if result.get("code") == 0:
-                    insert_ops_bot_log("Insert kube ingress app ", json.dumps(userRequestData), "post",
-                                       json.dumps(result))
-                    return result
-                else:
-                    return {"code": 1, "messages": "create kube ingress failure ", "status": True, "data": "failure"}
-    else:
+    namespace_name = data.get("namespace")
+    ingres_name = data.get('ingress_name')
+    host_name = data.get('host')
+    svc_name = data.get('svc_name')
+    svc_port = data.get("svc_port")
+    client_config_path = data.get("client_config_path")
+    used = data.get("used")
+    if not (namespace_name and ingres_name and host_name and svc_name and svc_port and client_config_path and used):
         return {'code': 1, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
+    result_ingress_name = session.query(IngressK8sData).filter_by(ingress_name=data.get("ingress_name")).all()
+    if result_ingress_name:
+        msg = '''Ingress_info  Service: {ingress_name} existing 提示: 已经存在,不允许覆盖操作!'''.format(
+            ingress_name=data.get("ingress_name"))
+        return {"code": 1, "data": msg, "message": "ingress_info Record already exists", "status": True}
+    else:
+        insert_ingress_instance = k8sIngressManager(data.get('client_config_path'), data.get('namespace'))
+        insert_result_data = insert_ingress_instance.create_kube_ingress(data.get('ingress_name'),
+                                                                         data.get("host"),
+                                                                         data.get("svc_name"),
+                                                                         data.get("svc_port"),
+                                                                         data.get("path"),
+                                                                         data.get("path_type"),
+                                                                         data.get("ingress_class_name"),
+                                                                         data.get("tls"),
+                                                                         data.get("tls_secret")
+                                                                         )
+        if insert_result_data.get("code") == 0:
+            result = insert_db_ingress(item_dict.get("namespace"), data.get('ingress_name'), item_dict.get("host"),
+                                       item_dict.get("svc_name"),
+                                       item_dict.get("path"), item_dict.get("path_type"),
+                                       item_dict.get("ingress_class_name"), item_dict.get("tls"),
+                                       item_dict.get("tls_secret"),
+                                       item_dict.get("svc_port"), item_dict.get("used"))
+            if result.get("code") == 0:
+                insert_ops_bot_log("Insert kube ingress app ", json.dumps(userRequestData), "post",
+                                   json.dumps(result))
+                return result
+            else:
+                return {"code": 1, "messages": "create kube ingress failure ", "status": True, "data": "failure"}
 
 
 @app.put("/v1/k8s/ingress/plan/", summary="Change Ingress App Plan", tags=["IngressKubernetes"])
@@ -709,37 +726,42 @@ async def put_ingress_plan(ReQuest: Request, request_data: UpdateIngressK8S):
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
-    if data.get("namespace") and data.get('ingress_name') and data.get('host') and data.get("svc_port") and data.get(
-            'used') and data.get("svc_name") and data.get('client_config_path'):
-        update_ingress_instance = k8sIngressManager(data.get('client_config_path'), data.get('namespace'))
-        data_result = update_ingress_instance.replace_kube_ingress(
-            data.get('ingress_name'),
-            data.get('host'),
-            data.get("svc_name"),
-            data.get('svc_port'),
-            data.get('path'),
-            data.get('path_type'),
-            data.get('ingress_class_name'),
-            data.get('tls'),
-            data.get("tls_secret")
-        )
-        if data_result.get("code") == 0:
-            result = updata_db_ingress(
-                item_dict.get("id"),
-                item_dict.get("namespace"), item_dict.get("ingress_name"),
-                item_dict.get("host"), item_dict.get("svc_name"),
-                item_dict.get("path"),
-                item_dict.get("path_type"), item_dict.get("ingress_class_name"), item_dict.get("tls"),
-                item_dict.get("tls_secret"),
-                item_dict.get("svc_port"), item_dict.get("used")
-            )
-            if result.get("code") == 0:
-                insert_ops_bot_log("Update kube ingress  app ", json.dumps(userRequestData), "post", json.dumps(result))
-                return result
-        else:
-            return {"code": 1, "messages": "update kube deploy app failure ", "status": True, "data": "failure"}
-    else:
+    namespace_name = data.get("namespace")
+    ingres_name = data.get('ingress_name')
+    host_name = data.get('host')
+    svc_name = data.get('svc_name')
+    svc_port = data.get("svc_port")
+    client_config_path = data.get("client_config_path")
+    used = data.get("used")
+    if not (namespace_name and ingres_name and host_name and svc_name and svc_port and client_config_path and used):
         return {'code': 1, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
+    update_ingress_instance = k8sIngressManager(data.get('client_config_path'), data.get('namespace'))
+    data_result = update_ingress_instance.replace_kube_ingress(
+        data.get('ingress_name'),
+        data.get('host'),
+        data.get("svc_name"),
+        data.get('svc_port'),
+        data.get('path'),
+        data.get('path_type'),
+        data.get('ingress_class_name'),
+        data.get('tls'),
+        data.get("tls_secret")
+    )
+    if data_result.get("code") == 0:
+        result = updata_db_ingress(
+            item_dict.get("id"),
+            item_dict.get("namespace"), item_dict.get("ingress_name"),
+            item_dict.get("host"), item_dict.get("svc_name"),
+            item_dict.get("path"),
+            item_dict.get("path_type"), item_dict.get("ingress_class_name"), item_dict.get("tls"),
+            item_dict.get("tls_secret"),
+            item_dict.get("svc_port"), item_dict.get("used")
+        )
+        if result.get("code") == 0:
+            insert_ops_bot_log("Update kube ingress  app ", json.dumps(userRequestData), "post", json.dumps(result))
+            return result
+    else:
+        return {"code": 1, "messages": "update kube deploy app failure ", "status": True, "data": "failure"}
 
 
 @app.get("/v1/k8s/ingress/plan/", summary="Get Ingress App Plan", tags=["IngressKubernetes"])
@@ -764,19 +786,21 @@ async def del_ingress_plan(ReQuest: Request, request_data: deleteIngressK8S):
     item_dict = request_data.dict()
     userRequestData = await ReQuest.json()
     data = request_data.dict()
-    if data.get("ingress_name") and data.get('namespace') and data.get('client_config_path'):
-        delete_ingress_instance = k8sIngressManager(data.get('client_config_path'), data.get('namespace'))
-        result_data = delete_ingress_instance.delete_kube_ingress(data.get('namespace'), data.get("ingress_name"))
-        if result_data.get("code") == 0:
-            deleteInstance = deleteDeployK8S(data.get("id"))
-            insert_ops_bot_log("Delete kube Ingress App", json.dumps(userRequestData), "delete",
-                               json.dumps(deleteInstance))
-            return deleteInstance
-        else:
-            return {"code": 1, "messages": "delete Ingress App  failure ", "status": True, "data": "failure"}
-    else:
+    ingress_name = data.get("ingress_name")
+    namespace_name = data.get('namespace')
+    client_config_path = data.get('client_config_path')
+    if not (ingress_name and namespace_name and client_config_path):
         return {"code": 1, "messages": "Delete Ingress App failure, Incorrect parameters", "status": True,
                 "data": "failure"}
+    delete_ingress_instance = k8sIngressManager(data.get('client_config_path'), data.get('namespace'))
+    result_data = delete_ingress_instance.delete_kube_ingress(data.get('namespace'), data.get("ingress_name"))
+    if result_data.get("code") == 0:
+        deleteInstance = deleteDeployK8S(data.get("id"))
+        insert_ops_bot_log("Delete kube Ingress App", json.dumps(userRequestData), "delete",
+                           json.dumps(deleteInstance))
+        return deleteInstance
+    else:
+        return {"code": 1, "messages": "delete Ingress App  failure ", "status": True, "data": "failure"}
 
 
 if __name__ == "__main__":

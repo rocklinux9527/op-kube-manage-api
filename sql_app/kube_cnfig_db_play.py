@@ -2,7 +2,7 @@ from sql_app.db_play import model_create, model_update, model_updateId, model_de
 from sql_app.models import KubeK8sConfig
 from sqlalchemy.orm import sessionmaker
 from sql_app.database import engine
-
+from sqlalchemy import and_
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -83,12 +83,16 @@ def delete_kube_config(Id):
 
 
 def query_kube_config(env, cluster_name, server_address, client_key_path):
+    print("参数", env)
     """
     1.跟进不同条件查询配置信息
     """
     session = SessionLocal()
     data = session.query(KubeK8sConfig)
     try:
+        if env and cluster_name:
+            results = data.filter(and_(KubeK8sConfig.env == env, KubeK8sConfig.cluster_name == cluster_name)).all()
+            return {"code": 0, "data": results}
         if env:
             return {"code": 0, "data": data.filter_by(env=env).all()}
 
@@ -100,15 +104,21 @@ def query_kube_config(env, cluster_name, server_address, client_key_path):
 
         if client_key_path:
             return {"code": 0, "data": data.filter_by(client_key_path=client_key_path).first()}
-
     except Exception as e:
-        print(e)
-    session.commit()
-    session.close()
+        session.commit()
+        session.close()
+    print("走全局了")
     return {"code": 0, "data": [i.to_dict for i in data], "messages": "query success", "status": True}
 
 
 def query_kube_env_cluster_all():
+    """
+    1.查询集群配置接口
+    2.处理返回后数据重组数据结构.
+    3.处理后数据结构示例如下:
+    {'env': ['dev'], 'cluster': [{'dev': 'c1'}, {'dev': 'c2'}], 'client_key_path':
+    [{'dev': '/dev_c1.conf'}, {'dev': '/dev_c2.conf'}]}
+    """
     import requests
     from tools.config import queryClusterURL
     sp = requests.get(queryClusterURL)
@@ -116,10 +126,14 @@ def query_kube_env_cluster_all():
         data = dict()
         envs = list(set([i.get("env") for i in sp.json().get("data")]))
         data["env"] = envs
-        envList = []
+        clusterList = []
         for i in sp.json().get("data"):
-            envList.append({i.get("env"): i.get("cluster_name")})
-        data["cluster"] = envList
+            clusterList.append({i.get("env"): i.get("cluster_name")})
+        data["cluster"] = clusterList
+        keyPathList = []
+        for i in sp.json().get("data"):
+            keyPathList.append({i.get("env"): i.get("client_key_path")})
+        data["client_key_path"] = keyPathList
         return data
     except Exception as e:
         return str(e), False

@@ -1,0 +1,6 @@
+*.xml
+.idea/*
+.test.py
+venv/*
+
+

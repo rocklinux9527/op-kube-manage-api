@@ -183,7 +183,8 @@ def query_cluster_client_path_v2(env, cluster_name):
         data = sp.json().get("data")
         if data:
             client_key_path = next((client_path.get("client_key_path") for client_path in data), "")
-            return {"code": 1, "status": False, "data": client_key_path, "messages": "Cluster Client Path Success"}
+            print(client_key_path)
+            return {"code": 0, "status": False, "data": client_key_path, "messages": "Cluster Client Path Success"}
         else:
             return {"code": 1, "status": False, "data": "", "messages": "cluster config not found"}
     except Exception as e:

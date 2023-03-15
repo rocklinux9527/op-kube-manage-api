@@ -6,7 +6,7 @@ from sql_app.database import engine
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def insert_db_ns(ns_name, used):
+def insert_db_ns(env, cluster_name, ns_name, used):
     """
     1.新增入库参数
     :param ns_name:
@@ -14,11 +14,15 @@ def insert_db_ns(ns_name, used):
     :return:
     """
     fildes = {
+        "env": "env",
+        "cluster_name": "cluster_name",
         "ns_name": "ns_name",
         "used": "used"
     }
 
     request_data = {
+        "env": env,
+        "cluster_name": cluster_name,
         "ns_name": ns_name,
         "used": used
     }

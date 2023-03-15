@@ -6,7 +6,7 @@ from sql_app.database import engine
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def insert_db_ingress(namespace, ingress_name, host, svc_name, path,
+def insert_db_ingress(env, cluster_name, namespace, ingress_name, host, svc_name, path,
                       path_type, ingress_class_name, tls, tls_secret,
                       svc_port, used):
     """
@@ -16,6 +16,8 @@ def insert_db_ingress(namespace, ingress_name, host, svc_name, path,
     :return:
     """
     fildes = {
+        "env": "env",
+        "cluster_name": "cluster_name",
         "namespace": "namespace",
         "ingress_name": "ingress_name",
         "host": "host",
@@ -30,6 +32,8 @@ def insert_db_ingress(namespace, ingress_name, host, svc_name, path,
     }
 
     request_data = {
+        "env": env,
+        "cluster_name": cluster_name,
         "namespace": namespace,
         "ingress_name": ingress_name,
         "host": host,
@@ -45,7 +49,7 @@ def insert_db_ingress(namespace, ingress_name, host, svc_name, path,
     return model_create(IngressK8sData, request_data, fildes)
 
 
-def updata_db_ingress(Id, namespace, ingress_name,
+def updata_db_ingress(Id, env, cluster_name, namespace, ingress_name,
                       host, svc_name, path,
                       path_type, ingress_class_name,
                       tls, tls_secret, svc_port, used):
@@ -65,6 +69,8 @@ def updata_db_ingress(Id, namespace, ingress_name,
     :return:
     """
     fildes = {
+        "env": "env",
+        "cluster_name": "cluster_name",
         "namespace": "namespace",
         "ingress_name": "ingress_name",
         "host": "host",
@@ -78,6 +84,8 @@ def updata_db_ingress(Id, namespace, ingress_name,
         "used": "used"
     }
     request_data = {
+        "env": env,
+        "cluster_name": cluster_name,
         "namespace": namespace,
         "ingress_name": ingress_name,
         "host": host,
@@ -102,13 +110,17 @@ def delete_db_ingress(Id):
     return model_delete(IngressK8sData, Id)
 
 
-def query_kube_ingres(namespace, ingress_name, host, svc_name, svc_port, tls, tls_secret):
+def query_kube_ingres(env, cluster_name,namespace, ingress_name, host, svc_name, svc_port, tls, tls_secret):
     """
     1.跟进不同条件查询配置信息
     """
     session = SessionLocal()
     data = session.query(IngressK8sData)
     try:
+        if env:
+            return {"code": 0, "data": data.filter_by(env=env).first()}
+        if cluster_name:
+            return {"code": 0, "data": data.filter_by(cluster_name=cluster_name).first()}
         if namespace:
             return {"code": 0, "data": data.filter_by(namespace=namespace).first()}
 
@@ -122,8 +134,8 @@ def query_kube_ingres(namespace, ingress_name, host, svc_name, svc_port, tls, tl
             return {"code": 0, "data": data.filter_by(svc_name=svc_name).first()}
         if svc_port:
             return {"code": 0, "data": data.filter_by(svc_port=svc_port).first()}
-        if ingress_class_name:
-            return {"code": 0, "data": data.filter_by(ingress_class_name=ingress_class_name).first()}
+        if ingress_name:
+            return {"code": 0, "data": data.filter_by(ingress_class_name=ingress_name).first()}
 
         if tls:
             return {"code": 0, "data": data.filter_by(tls=tls).first()}

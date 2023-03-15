@@ -6,9 +6,11 @@ from sql_app.database import engine
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def insert_db_svc(namespace, svc_name, selector_labels, svc_port, svc_type, target_port):
+def insert_db_svc(env, cluster_name, namespace, svc_name, selector_labels, svc_port, svc_type, target_port):
     """
     1.新增入库参数
+    :env
+    :cluster_name
     :param namespace:
     :param svc_name:
     :param svc_port:
@@ -17,6 +19,8 @@ def insert_db_svc(namespace, svc_name, selector_labels, svc_port, svc_type, targ
     :return:
     """
     fildes = {
+        "env": "env",
+        "cluster_name":"cluster_name",
         "namespace": "namespace",
         "svc_name": "svc_name",
         "selector_labels": "selector_labels",
@@ -26,6 +30,8 @@ def insert_db_svc(namespace, svc_name, selector_labels, svc_port, svc_type, targ
     }
 
     request_data = {
+        "env": env,
+        "cluster_name": cluster_name,
         "namespace": namespace,
         "svc_name": svc_name,
         "selector_labels": selector_labels,
@@ -36,7 +42,7 @@ def insert_db_svc(namespace, svc_name, selector_labels, svc_port, svc_type, targ
     return model_create(ServiceK8sData, request_data, fildes)
 
 
-def updata_kube_deployment(Id, namespace, svc_name, selector_labels, svc_port, svc_type, target_port):
+def updata_kube_deployment(Id, env, cluster_name, namespace, svc_name, selector_labels, svc_port, svc_type, target_port):
     """
 
     :param Id:
@@ -49,6 +55,8 @@ def updata_kube_deployment(Id, namespace, svc_name, selector_labels, svc_port, s
     :return:
     """
     fildes = {
+        "env": "env",
+        "cluster_name": "cluster_name",
         "namespace": "namespace",
         "svc_name": "svc_name",
         "selector_labels": "selector_labels",
@@ -58,6 +66,8 @@ def updata_kube_deployment(Id, namespace, svc_name, selector_labels, svc_port, s
     }
 
     request_data = {
+        "env": env,
+        "cluster_name": cluster_name,
         "namespace": namespace,
         "svc_name": svc_name,
         "selector_labels": selector_labels,
@@ -76,16 +86,19 @@ def delete_db_svc(Id):
     return model_delete(ServiceK8sData, Id)
 
 
-def query_kube_svc(namespace, svc_name, selector_labels, svc_port, svc_type, target_port):
+def query_kube_svc(env, cluster_name, namespace, svc_name, selector_labels, svc_port, svc_type, target_port):
     """
     1.跟进不同条件查询配置信息
     """
     session = SessionLocal()
     data = session.query(ServiceK8sData)
     try:
+        if env:
+            return {"code": 0, "data": data.filter_by(env=env).first()}
+        if cluster_name:
+            return {"code": 0, "data": data.filter_by(env=env).first()}
         if namespace:
             return {"code": 0, "data": data.filter_by(namespace=namespace).first()}
-
         if svc_name:
             return {"code": 0, "data": data.filter_by(svc_name=svc_name).first()}
 

@@ -74,6 +74,8 @@ class ServiceK8sData(Base):
     """
     __tablename__ = "op_kube_manage_svc_data"
     id = Column(Integer, primary_key=True)
+    env = Column(String(32), comment="环境")
+    cluster_name = Column(String(64), comment="集群")
     namespace = Column(String(64), comment="命名空间")
     svc_name = Column(String(64), comment="svc 服务名称")
     selector_labels = Column(String(64), comment="selector deploy 标签")
@@ -85,6 +87,8 @@ class ServiceK8sData(Base):
     @property
     def to_dict(self):
         return {"id": self.id,
+                "env": self.env,
+                "cluster_name": self.cluster_name,
                 "namespace": self.namespace,
                 "svc_name": self.svc_name,
                 "selector_labels": self.selector_labels,
@@ -101,6 +105,8 @@ class IngressK8sData(Base):
     """
     __tablename__ = "op_kube_manage_ingress_data"
     id = Column(Integer, primary_key=True)
+    env = Column(String(32), comment="环境")
+    cluster_name = Column(String(64), comment="集群")
     namespace = Column(String(64), comment="命名空间")
     ingress_name = Column(String(64), comment="ingress 名称")
     host = Column(String(128), comment="访问域名fqdn")
@@ -117,6 +123,8 @@ class IngressK8sData(Base):
     @property
     def to_dict(self):
         return {"id": self.id,
+                "env": self.env,
+                "cluster_name": self.cluster_name,
                 "namespace": self.namespace,
                 "ingress_name": self.ingress_name,
                 "host": self.host,
@@ -183,13 +191,15 @@ def init_db():
 class DeployNsData(Base):
     __tablename__ = "op_kube_manage_ns_data"
     id = Column(Integer, primary_key=True)
+    env = Column(String(16), comment="环境")
+    cluster_name = Column(String(64), comment="集群")
     ns_name = Column(String(63), comment="ns名称")
     used = Column(Text, nullable=True, comment="用途")
     create_time = Column(DateTime, server_default=func.now(), comment="创建时间")
 
     @property
     def to_dict(self):
-        return {"id": self.id, "ns_name": self.ns_name, "used": self.used, "create_time": self.create_time}
+        return {"id": self.id,  "env": self.env,  "cluster_name": self.cluster_name, "ns_name": self.ns_name, "used": self.used, "create_time": self.create_time}
 
 
 if __name__ == "__main__":

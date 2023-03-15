@@ -1,6 +1,6 @@
 import requests
 from tools.config import queryClusterURL
-from sql_app.kube_cnfig_db_play import query_kube_env_cluster_all
+from sql_app.kube_cnfig_db_play import query_kube_env_cluster_all,query_cluster_client_path_v2
 import json
 
 
@@ -10,7 +10,7 @@ def clusterConfigCheck(my_dict):
     """
 
     def wrapper(func):
-        def inner(*args, **kwargs):
+        def inner():
             result_Cluster_Info = query_kube_env_cluster_all()
             envListData = set(result_Cluster_Info.get("env"))
             clusterListData = result_Cluster_Info.get("cluster")
@@ -35,5 +35,6 @@ def my_func():
 
 
 if __name__ == "__main__":
-    a = my_func()
-    print(a)
+    #a = my_func()
+    result = query_cluster_client_path_v2("test", "c1")
+    print(result)

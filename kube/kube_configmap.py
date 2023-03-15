@@ -1,5 +1,6 @@
 """
 """
+from kubernetes import client, config
 class k8sConfigMapManager:
     def __init__(self, clint_config_file, namespace):
         self.namespace = namespace

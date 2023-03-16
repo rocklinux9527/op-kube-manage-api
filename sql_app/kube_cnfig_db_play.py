@@ -88,7 +88,6 @@ def delete_kube_config(Id):
 
 
 def query_kube_config(env, cluster_name, server_address, client_key_path):
-    print("参数", env)
     """
     1.跟进不同条件查询配置信息
     """
@@ -100,7 +99,6 @@ def query_kube_config(env, cluster_name, server_address, client_key_path):
             return {"code": 0, "data": results}
         if env:
             return {"code": 0, "data": data.filter_by(env=env).all()}
-
         if cluster_name:
             return {"code": 0, "data": data.filter_by(cluster_name=cluster_name).all()}
 
@@ -112,8 +110,25 @@ def query_kube_config(env, cluster_name, server_address, client_key_path):
     except Exception as e:
         session.commit()
         session.close()
-    print("走全局了")
     return {"code": 0, "data": [i.to_dict for i in data], "messages": "query success", "status": True}
+
+
+def query_kube_db_env_cluster_all(env, cluster_name):
+    """
+    1.查询数据库环境和集群信息
+    """
+    session = SessionLocal()
+    data = session.query(KubeK8sConfig)
+    try:
+        if env and cluster_name:
+            results = data.filter(and_(KubeK8sConfig.env == env, KubeK8sConfig.cluster_name == cluster_name)).all()
+            return {"code": 0, "data": [i.to_dict for i in results], "status": True}
+        else:
+            return {"code": 1, "data": "", "status": False}
+    except Exception as e:
+        print(e)
+        session.commit()
+        session.close()
 
 
 def query_kube_env_cluster_all():
@@ -123,7 +138,7 @@ def query_kube_env_cluster_all():
     3.处理后数据结构示例如下:
     {'env': ['dev'], 'cluster': [{'dev': 'c1'}, {'dev': 'c2'}]}
     """
-    sp = requests.get(queryClusterURL, timeout=5)
+    sp = requests.get(queryClusterURL)
     try:
         data = dict()
         envs = list(set([i.get("env") for i in sp.json().get("data")]))

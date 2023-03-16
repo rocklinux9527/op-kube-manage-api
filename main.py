@@ -1,12 +1,14 @@
 # https://github.com/kubernetes-client/python/tree/master/kubernetes/docs
 
-from fastapi import FastAPI, Query, Depends
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Dict
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 import uvicorn
 import json
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 # ops kube func method
 from kube.kube_config import add_kube_config, get_kube_config_content, get_key_file_path, get_kube_config_dir_file, \
@@ -21,10 +23,10 @@ from sql_app.database import engine
 # db ops deploy and kube config
 from sql_app.ops_log_db_play import query_operate_ops_log, insert_ops_bot_log
 from sql_app.kube_cnfig_db_play import insert_kube_config, updata_kube_config, delete_kube_config, query_kube_config, \
-    query_kube_env_cluster_all, query_cluster_client_path_v2
+    query_kube_env_cluster_all, query_kube_db_env_cluster_all
 from sql_app.kube_deploy_db_play import insert_kube_deployment, updata_kube_deployment, delete_kube_deployment, \
     query_kube_deployment
-
+from tools.cluster_info import clusterConfigCheck
 # db ops kube namespace
 from sql_app.kube_ns_db_play import insert_db_ns, delete_db_ns, query_ns
 
@@ -37,7 +39,6 @@ from sql_app.kube_ingress_db_play import insert_db_ingress, updata_db_ingress, d
 
 # import wrapper func
 
-from tools.cluster_info import clusterConfigCheck
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -47,6 +48,8 @@ app = FastAPI(
     description="kubernetes管理工具",
     version="0.0.1",
 )
+router = APIRouter()
+
 
 origins = [
     "http://0.0.0.0:8888",
@@ -233,45 +236,48 @@ def get_namespace_plan(client_config_path: Optional[str]):
     return data
 
 
+
 @app.get("/v1/db/k8s/ns/plan/", summary="Get namespace App Plan", tags=["NamespaceKubernetes"])
 def get_db_namespace_plan():
     db_result = query_ns()
     return {"code": 0, "messages": "query success", "data": db_result, "status": True}
 
-
 @app.post("/v1/db/k8s/ns/plan/", summary="Add namespace App Plan", tags=["NamespaceKubernetes"])
-def post_namespace_plan(request_data: createNameSpace, ReQuest: Request):
+async def post_namespace_plan(request: Request, request_data: createNameSpace):
     from sqlalchemy.orm import sessionmaker, query
     from sql_app.database import engine
     from sql_app.models import DeployNsData
-    item_dict = request_data.dict()
-    userRequestData = ReQuest.json()
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
-    print(check_cluster)
-    result_ns_name = session.query(DeployNsData).filter_by(ns_name=data.get("ns_name")).all()
+    user_request_data = await request.json()
     namespace_name = data.get("ns_name")
-    used_name = data.get('used')
+    env_name = data.get("env")
+    cluster_name = data.get("cluster_name")
     if not (cluster_name and env_name):
-        return {'code': 1, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
+        raise HTTPException(status_code=400, detail="If the parameter is insufficient, check it")
+    cluster_info = query_kube_db_env_cluster_all(env_name, cluster_name)
+    if not cluster_info:
+        raise HTTPException(status_code=400, detail=f"环境:{env_name}  集群:{cluster_name}  不存在请提前配置集群和环境")
+    result_ns_name = session.query(DeployNsData).filter_by(ns_name=data.get("ns_name")).all()
     if result_ns_name:
-        msg = '''Namespace_info namespace: {ns_name} existing 提示: 已经存在,不允许覆盖操作!'''.format(
-            ns_name=namespace_name)
+        msg = f"Namespace_info namespace: {namespace_name} existing 提示: 已经存在,不允许覆盖操作!"
         return {"code": 1, "data": msg, "message": "Namespace_info Record already exists", "status": True}
     else:
-        insert_ns_instance = k8sNameSpaceManager(data.get('client_config_path'))
-        insert_result_data = insert_ns_instance.create_kube_namespaces(data.get("ns_name"))
-        if insert_result_data.get("code") == 0:
-            result = insert_db_ns(item_dict.get("ns_name"), item_dict.get("used"))
-            if result.get("code") == 0:
-                insert_ops_bot_log("Insert kube namespace ", json.dumps(userRequestData), "post",
-                                   json.dumps(result))
-                return result
-            else:
-                return {"code": 1, "messages": "create kube namespace  failure ", "status": True, "data": "failure"}
-        else:
-            return insert_result_data
+        print("配置信息为空",cluster_info)
+        for client_path in cluster_info:
+            client_path = client_path.get("data")
+            if not client_path:
+                raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
+            insert_ns_instance = k8sNameSpaceManager(client_path)
+            insert_result_data = await insert_ns_instance.create_kube_namespaces(data.get("ns_name"))
+            if insert_result_data.get("code") != 0:
+                raise HTTPException(status_code=400, detail=insert_result_data)
+            result = crud.insert_db_ns(db, env_name, cluster_name, data.get("ns_name"), data.get("used"))
+            if result.get("code") != 0:
+                raise HTTPException(status_code=400, detail="create kube namespace  failure ")
+            insert_ops_bot_log("Insert kube namespace ", json.dumps(user_request_data), "post", json.dumps(result))
+            return result
 
 
 class CreateDeployK8S(BaseModel):
@@ -579,7 +585,8 @@ async def put_service_plan(ReQuest: Request, request_data: UpdateSvcK8S):
     image_name = data.get('image')
     client_config_path = data.get('client_config_path')
 
-    if not (env_name and cluster_name and namespace_name and app_name and replicas and image_name and client_config_path):
+    if not (
+            env_name and cluster_name and namespace_name and app_name and replicas and image_name and client_config_path):
         return {'code': 1, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
     update_deploy_instance = k8sDeploymentManager(data.get('client_config_path'),
                                                   data.get('namespace'))
@@ -679,7 +686,6 @@ async def post_ingress_plan(ReQuest: Request, request_data: CreateIngressK8S):
     from sql_app.database import engine
     item_dict = request_data.dict()
     userRequestData = await ReQuest.json()
-
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
@@ -811,5 +817,4 @@ async def del_ingress_plan(ReQuest: Request, request_data: deleteIngressK8S):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8888, log_level="debug")
-
+    uvicorn.run(app, host="0.0.0.0", port=8888, log_level="debug")

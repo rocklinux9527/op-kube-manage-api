@@ -1,6 +1,6 @@
 # https://github.com/kubernetes-client/python/tree/master/kubernetes/docs
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Depends
 from pydantic import BaseModel
 from typing import List, Optional, Set
 from starlette.middleware.cors import CORSMiddleware
@@ -21,7 +21,7 @@ from sql_app.database import engine
 # db ops deploy and kube config
 from sql_app.ops_log_db_play import query_operate_ops_log, insert_ops_bot_log
 from sql_app.kube_cnfig_db_play import insert_kube_config, updata_kube_config, delete_kube_config, query_kube_config, \
-    query_kube_env_cluster_all
+    query_kube_env_cluster_all, query_cluster_client_path_v2
 from sql_app.kube_deploy_db_play import insert_kube_deployment, updata_kube_deployment, delete_kube_deployment, \
     query_kube_deployment
 
@@ -34,6 +34,10 @@ from sql_app.kub_svc_db_play import insert_db_svc, delete_db_svc, query_kube_svc
 from kube.kube_ingress import k8sIngressManager
 # db ops kube ingress
 from sql_app.kube_ingress_db_play import insert_db_ingress, updata_db_ingress, delete_db_ingress, query_kube_ingres
+
+# import wrapper func
+
+from tools.cluster_info import clusterConfigCheck
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -211,6 +215,8 @@ async def delete_kube_config_v1(ReQuest: Request, request_data: deleteKubeConfig
 
 
 class createNameSpace(BaseModel):
+    env: str
+    cluster_name: str
     client_config_path: str
     ns_name: str
     used: str
@@ -234,15 +240,16 @@ def get_db_namespace_plan():
 
 
 @app.post("/v1/db/k8s/ns/plan/", summary="Add namespace App Plan", tags=["NamespaceKubernetes"])
-async def post_namespace_plan(ReQuest: Request, request_data: createNameSpace):
+def post_namespace_plan(request_data: createNameSpace, ReQuest: Request):
     from sqlalchemy.orm import sessionmaker, query
     from sql_app.database import engine
     from sql_app.models import DeployNsData
     item_dict = request_data.dict()
-    userRequestData = await ReQuest.json()
+    userRequestData = ReQuest.json()
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
+    print(check_cluster)
     result_ns_name = session.query(DeployNsData).filter_by(ns_name=data.get("ns_name")).all()
     namespace_name = data.get("ns_name")
     used_name = data.get('used')
@@ -804,4 +811,5 @@ async def del_ingress_plan(ReQuest: Request, request_data: deleteIngressK8S):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8888, log_level="debug")
+    uvicorn.run(app, host="127.0.0.1", port=8888, log_level="debug")
+

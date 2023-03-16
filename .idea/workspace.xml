@@ -5,15 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ecfe711e-d0e3-481e-b245-4ca68161c572" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/ops-monitor-shopify-code.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kube/kube_configmap.py" beforeDir="false" afterPath="$PROJECT_DIR$/kube/kube_configmap.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql_app/kub_svc_db_play.py" beforeDir="false" afterPath="$PROJECT_DIR$/sql_app/kub_svc_db_play.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql_app/kube_cnfig_db_play.py" beforeDir="false" afterPath="$PROJECT_DIR$/sql_app/kube_cnfig_db_play.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql_app/kube_ingress_db_play.py" beforeDir="false" afterPath="$PROJECT_DIR$/sql_app/kube_ingress_db_play.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql_app/kube_ns_db_play.py" beforeDir="false" afterPath="$PROJECT_DIR$/sql_app/kube_ns_db_play.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql_app/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/sql_app/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tools/cluster_info.py" beforeDir="false" afterPath="$PROJECT_DIR$/tools/cluster_info.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tools/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/tools/config.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

@@ -50,7 +50,6 @@ app = FastAPI(
 )
 router = APIRouter()
 
-
 origins = [
     "http://0.0.0.0:8888",
 ]
@@ -220,7 +219,6 @@ async def delete_kube_config_v1(ReQuest: Request, request_data: deleteKubeConfig
 class createNameSpace(BaseModel):
     env: str
     cluster_name: str
-    client_config_path: str
     ns_name: str
     used: str
 
@@ -236,17 +234,18 @@ def get_namespace_plan(client_config_path: Optional[str]):
     return data
 
 
-
 @app.get("/v1/db/k8s/ns/plan/", summary="Get namespace App Plan", tags=["NamespaceKubernetes"])
 def get_db_namespace_plan():
     db_result = query_ns()
     return {"code": 0, "messages": "query success", "data": db_result, "status": True}
+
 
 @app.post("/v1/db/k8s/ns/plan/", summary="Add namespace App Plan", tags=["NamespaceKubernetes"])
 async def post_namespace_plan(request: Request, request_data: createNameSpace):
     from sqlalchemy.orm import sessionmaker, query
     from sql_app.database import engine
     from sql_app.models import DeployNsData
+    from sql_app.kube_ns_db_play import insert_db_ns
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     data = request_data.dict()
@@ -257,23 +256,21 @@ async def post_namespace_plan(request: Request, request_data: createNameSpace):
     if not (cluster_name and env_name):
         raise HTTPException(status_code=400, detail="If the parameter is insufficient, check it")
     cluster_info = query_kube_db_env_cluster_all(env_name, cluster_name)
-    if not cluster_info:
+    if  not (cluster_info.get("data")):
         raise HTTPException(status_code=400, detail=f"环境:{env_name}  集群:{cluster_name}  不存在请提前配置集群和环境")
     result_ns_name = session.query(DeployNsData).filter_by(ns_name=data.get("ns_name")).all()
     if result_ns_name:
         msg = f"Namespace_info namespace: {namespace_name} existing 提示: 已经存在,不允许覆盖操作!"
         return {"code": 1, "data": msg, "message": "Namespace_info Record already exists", "status": True}
     else:
-        print("配置信息为空",cluster_info)
-        for client_path in cluster_info:
-            client_path = client_path.get("data")
-            if not client_path:
+        for client_path in cluster_info.get("data"):
+            if not (client_path.get("client_key_path")):
                 raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
-            insert_ns_instance = k8sNameSpaceManager(client_path)
+            insert_ns_instance = k8sNameSpaceManager(client_path.get("client_key_path"))
             insert_result_data = await insert_ns_instance.create_kube_namespaces(data.get("ns_name"))
             if insert_result_data.get("code") != 0:
                 raise HTTPException(status_code=400, detail=insert_result_data)
-            result = crud.insert_db_ns(db, env_name, cluster_name, data.get("ns_name"), data.get("used"))
+            result = insert_db_ns(env_name, cluster_name, data.get("ns_name"), data.get("used"))
             if result.get("code") != 0:
                 raise HTTPException(status_code=400, detail="create kube namespace  failure ")
             insert_ops_bot_log("Insert kube namespace ", json.dumps(user_request_data), "post", json.dumps(result))

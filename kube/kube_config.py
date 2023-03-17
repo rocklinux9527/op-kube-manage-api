@@ -27,7 +27,7 @@ def getNacos_key(cluster, keyName):
 
 def add_kube_config(env, cluster_name, server_address, ca_data, client_crt_data, client_key_data):
     """
-    1.获取模版文件内容写入kube conf配置nacos配置集群信息
+    1.获取模版文件内容写入kube conf配置集群信息
     :param env:
     :param cluster:
     :return:

@@ -1,5 +1,5 @@
+*.idea
 *.xml
-.idea/*
 .test.py
 venv/*
 

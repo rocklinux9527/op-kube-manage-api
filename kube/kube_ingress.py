@@ -27,50 +27,6 @@ class k8sIngressManager():
                 ingNameDict["labels"] = ing.metadata.labels
             ingNameList.append(ingNameDict)
         return ingNameList
-        # print(ingNameList)
-        # rulesList = []
-        # try:
-        #     data = {"code": 0, "data": rulesList, "messages": "success", "status": True}
-        #     resut2 = networking_api.list_ingress_for_all_namespaces().items
-        #     for ing in resut2:
-        #         for y in ing.spec.rules:
-        #             rulesList.append(y.host)
-        #             rulesList.append(y.http.paths)
-        # except Exception as e:
-        #     data = {"code": 0, "data": str(e), "messages": "success", "status": True}
-        # return data
-        # service = "None"
-        # http_hosts = "None"
-        # for h in ing.spec.rules:
-        #     host = h.host
-        #     path_type = ("Prefix" if h.http.paths[0].path_type is None else h.http.paths[0].path_type)
-        #     path = ("/" if h.http.paths[0].path is None else h.http.paths[0].path)
-        #     service_name = h.http.paths[0].backend.service.name
-        #     service_port = h.http.paths[0].backend.service.port.number
-        #     http_hosts = {'host': host, 'path': path, 'path_type': 'path_type', 'service_name':service_name, 'service_port': service_port}
-        # print(http_hosts)
-
-        # for y in ing.spec.rules:
-        #     host = y.host
-        #     path_type = ("Prefix" if y.http.paths[1].path_type is None else y.http.paths[0].path_type)
-        #     path = ("/" if y.http.paths[1].path is None else y.http.paths[0].path)
-        #     service_name = y.http.paths[1].backend.service.name
-        #     service_port = y.http.paths[1].backend.service.port.number
-        #     http_hosts_y = {'host': host, 'path': path, 'path_type': 'path_type', 'service_name':service_name, 'service_port': service_port}
-        # print(http_hosts_y)
-        # #https_hosts = "None"
-        # # if ing.spec.tls is None:
-        # #     print(ing.spec.tls)
-        # #     https_hosts = ing.spec.tls
-        # # else:
-        # #     for tls in ing.spec.tls:
-        # #         host = tls.hosts[0]
-        # #         secret_name = tls.secret_name
-        # #         https_hosts = {'host': host, 'secret_name': secret_name}
-        # # print(https_hosts)
-        # ing = {"name": ingNameList.get("name"), "namespace": "", "labels": "", "http_hosts": http_hosts,
-        #        "https_hosts": https_hosts, "service": http_hosts.get("service_name"), "create_time": ing.metadata.creation_timestamp}
-        # return ing
 
     def get_kube_ingress_by_name(self, env, cluster, config_file, app_name):
 

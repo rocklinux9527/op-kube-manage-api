@@ -52,7 +52,7 @@ class k8sDeploymentManager:
                 "status": False
             }
 
-    def create_kube_deployment(self, ns, deployment_name, resources, replicas, image, env, container_port, health_liven_ess="on", health_readiness="on"):
+    def create_kube_deployment(self, ns, deployment_name, resources, replicas, image, deploy_env, container_port, health_liven_ess=None, health_readiness=None):
         """
         1.命名空间和body内容
         :param ns: str 命名空间名称
@@ -68,7 +68,10 @@ class k8sDeploymentManager:
         """
         try:
             labels = {'app': deployment_name}
-            # 处理资源配置
+            for dp in self.apps_api.list_namespaced_deployment(namespace=self.namespace).items:
+                if deployment_name == dp.metadata.name:
+                    return {"code": 1, "messages": "Deployment已经存在！", "data": "", "status": False }
+
             resources_dict = {
                 "1c2g": client.V1ResourceRequirements(limits={"cpu": "1", "memory": "2Gi"},
                                                       requests={"cpu": "0.9", "memory": "1.9Gi"}),
@@ -79,50 +82,74 @@ class k8sDeploymentManager:
             }
             resources = resources_dict.get(resources, client.V1ResourceRequirements(limits={"cpu": "500m", "memory": "1Gi"},
                                                                                     requests={"cpu": "450m", "memory": "900Mi"}))
-            # # 处理探针
-            # liveness_probe, readiness_probe = None, None
-            # if health_liven_ess == "on":
-            #     liveness_probe = client.V1Probe(http_get="/", timeout_seconds=30, initial_delay_seconds=30)
-            # if health_readiness == "on":
-            #     readiness_probe = client.V1Probe(http_get="/", timeout_seconds=30, initial_delay_seconds=30)
-
-            # 检查Deployment是否已存在
-            for dp in self.apps_api.list_namespaced_deployment(namespace=self.namespace).items:
-                if deployment_name == dp.metadata.name:
-                    return {"code": 1, "messages": "Deployment已经存在！", "data": "", "status": False }
-
-            # 创建Deployment
-            body = client.V1Deployment(
-                api_version="apps/v1",
-                kind="Deployment",
-                metadata=client.V1ObjectMeta(name=deployment_name, labels=labels),
-                spec=client.V1DeploymentSpec(
-                    replicas=replicas,
-                    selector={'matchLabels': labels},
-                    template=client.V1PodTemplateSpec(
-                        metadata=client.V1ObjectMeta(labels=labels),
-                        spec=client.V1PodSpec(
-                            containers=[client.V1Container(
-                                name=deployment_name,
-                                image=image,
-                                ports=[client.V1ContainerPort(container_port=container_port)],
-                                env=[env],
-                                # liveness_probe=liveness_probe,
-                                # readiness_probe=readiness_probe,
-                                resources=resources
-                            )]
+            if not health_liven_ess and not health_readiness:
+                # 创建Deployment
+                body = client.V1Deployment(
+                    api_version="apps/v1",
+                    kind="Deployment",
+                    metadata=client.V1ObjectMeta(name=deployment_name, labels=labels),
+                    spec=client.V1DeploymentSpec(
+                        replicas=replicas,
+                        selector={'matchLabels': labels},
+                        template=client.V1PodTemplateSpec(
+                            metadata=client.V1ObjectMeta(labels=labels),
+                            spec=client.V1PodSpec(
+                                containers=[client.V1Container(
+                                    name=deployment_name,
+                                    image=image,
+                                    ports=[client.V1ContainerPort(container_port=container_port)],
+                                    env=[deploy_env],
+                                    resources=resources
+                                )]
+                            )
                         )
                     )
                 )
-            )
-
-            data = self.apps_api.create_namespaced_deployment(namespace=ns, body=body)
-            return {
-                "code": 0,
-                "messages": "Create Deployment Success ",
-                "data": data,
-                "status": True
-            }
+            else:
+                container = client.V1Container(
+                    env=[deploy_env],
+                    name=deployment_name,
+                    image=image,
+                    resources=resources,
+                    ports=[client.V1ContainerPort(container_port=container_port)],
+                    liveness_probe=client.V1Probe(
+                        http_get=client.V1HTTPGetAction(
+                            path=health_liven_ess,
+                            port=container_port),
+                        period_seconds=10,
+                        initial_delay_seconds=15,
+                        timeout_seconds=5,
+                        failure_threshold=3),
+                    readiness_probe=client.V1Probe(
+                        http_get=client.V1HTTPGetAction(
+                            path=health_readiness,
+                            port=container_port),
+                        initial_delay_seconds=15,
+                        timeout_seconds=5,
+                        period_seconds=10,
+                        failure_threshold=3))
+                template = client.V1PodTemplateSpec(
+                    metadata=client.V1ObjectMeta(labels=labels),
+                    spec=client.V1PodSpec(
+                        restart_policy="Always",
+                        containers=[container]))
+                spec = client.V1DeploymentSpec(
+                    replicas=1,
+                    selector=client.V1LabelSelector(
+                        match_labels={"app": deployment_name}),
+                    template=template)
+                body = client.V1Deployment(
+                    api_version="apps/v1",
+                    kind="Deployment",
+                    metadata=client.V1ObjectMeta(name=deployment_name, labels=labels),
+                    spec=spec)
+                data = self.apps_api.create_namespaced_deployment(namespace=namespace, body=body)
+                return {
+                    "code": 0,
+                    "messages": "Create Deployment Success ",
+                    "data": data,
+                    "status": True
+                }
         except ApiException as e:
             logging.error(str(e))
             status = getattr(e, "status")
@@ -158,48 +185,114 @@ class k8sDeploymentManager:
                 msg = "delete deployment failure"
             return {"code": 1, "messages": msg, "data": "", "status": False}
 
-    def replace_kube_deployment(self, deployment_name, replicas, image, namespace):
+    def replace_kube_deployment(self, deployment_name, replicas, image, namespace, resources, deploy_env, container_port, health_liven_ess=None, health_readiness=None):
         """
         1.修改deployment资源对象
         :param deployment_name: str deployment名称
         :param namespace: str 命名空间名称
         :return: None
         """
-        print("请求来了哈", deployment_name, replicas, image, namespace)
-        labels = {'app': deployment_name}
-        body = client.V1Deployment(
-            api_version="apps/v1",
-            kind="Deployment",
-            metadata=client.V1ObjectMeta(name=deployment_name, labels=labels),
-            spec=client.V1DeploymentSpec(
-                replicas=replicas,
-                selector={'matchLabels': labels},
-                template=client.V1PodTemplateSpec(
+        resources_dict = {
+            "1c2g": client.V1ResourceRequirements(limits={"cpu": "1", "memory": "2Gi"},
+                                                  requests={"cpu": "0.9", "memory": "1.9Gi"}),
+            "2c4g": client.V1ResourceRequirements(limits={"cpu": "2", "memory": "4Gi"},
+                                                  requests={"cpu": "1.9", "memory": "3.9Gi"}),
+            "4c8g": client.V1ResourceRequirements(limits={"cpu": "4", "memory": "8Gi"},
+                                                  requests={"cpu": "3.9", "memory": "7.9Gi"}),
+        }
+        resources = resources_dict.get(resources, client.V1ResourceRequirements(limits={"cpu": "500m", "memory": "1Gi"},
+                                                                                requests={"cpu": "450m", "memory": "900Mi"}))
+        try:
+            labels = {'app': deployment_name}
+            if not health_liven_ess and not health_readiness:
+                labels = {'app': deployment_name}
+                body = client.V1Deployment(
+                    api_version="apps/v1",
+                    kind="Deployment",
+                    metadata=client.V1ObjectMeta(name=deployment_name, labels=labels),
+                    spec=client.V1DeploymentSpec(
+                        replicas=replicas,
+                        selector={'matchLabels': labels},
+                        template=client.V1PodTemplateSpec(
+                            metadata=client.V1ObjectMeta(labels=labels),
+                            spec=client.V1PodSpec(
+                                containers=[client.V1Container(
+                                    name=deployment_name,
+                                    image=image,
+                                    ports=[client.V1ContainerPort(container_port=container_port)],
+                                    env=[deploy_env],
+                                    resources=resources
+                                )]
+                            )
+                        ),
+                    )
+                )
+                data = self.apps_api.replace_namespaced_deployment(deployment_name, namespace, body)
+                return {
+                    "code": 0,
+                    "messages": "Update Deployment Success ",
+                    "data": data,
+                    "status": True
+                }
+            else:
+                container = client.V1Container(
+                    env=[deploy_env],
+                    name=deployment_name,
+                    image=image,
+                    resources=resources,
+                    ports=[client.V1ContainerPort(container_port=container_port)],
+                    liveness_probe=client.V1Probe(
+                        http_get=client.V1HTTPGetAction(
+                            path=health_liven_ess,
+                            port=container_port),
+                        period_seconds=10,
+                        initial_delay_seconds=15,
+                        timeout_seconds=5,
+                        failure_threshold=3),
+                    readiness_probe=client.V1Probe(
+                        http_get=client.V1HTTPGetAction(
+                            path=health_readiness,
+                            port=container_port),
+                        initial_delay_seconds=15,
+                        timeout_seconds=5,
+                        period_seconds=10,
+                        failure_threshold=3))
+                template = client.V1PodTemplateSpec(
                     metadata=client.V1ObjectMeta(labels=labels),
                     spec=client.V1PodSpec(
-                        containers=[client.V1Container(
-                            name=deployment_name,
-                            image=image
-                        )]
-                    )
-                ),
-            )
-        )
-        try:
-            data = self.apps_api.replace_namespaced_deployment(deployment_name, namespace, body)
-            return {
-                "code": 0,
-                "messages": "Update Deployment Success ",
-                "data": data,
-                "status": True
-            }
+                        restart_policy="Always",
+                        containers=[container]))
+                spec = client.V1DeploymentSpec(
+                    replicas=1,
+                    selector=client.V1LabelSelector(
+                        match_labels={"app": deployment_name}),
+                    template=template)
+                body = client.V1Deployment(
+                    api_version="apps/v1",
+                    kind="Deployment",
+                    metadata=client.V1ObjectMeta(name=deployment_name, labels=labels),
+                    spec=spec)
+                data = self.apps_api.replace_namespaced_deployment(deployment_name, namespace, body)
+                return {
+                    "code": 0,
+                    "messages": "Update Deployment Success ",
+                    "data": data,
+                    "status": True
+                }
         except ApiException as e:
-            print("异常了", str(e))
             logging.error(str(e))
             status = getattr(e, "status")
-            print(status)
             if status == 400:
                 msg = "Deployment Invalid format"
+            elif status == 403:
+                msg = "No permission"
+            elif status == 409:
+                msg = "Update Deployment failure: App Update exist"
+            elif status == 404:
+                msg = f"Update Deployment failure: Namespace {ns} not found"
+            else:
+                msg = "Update Deployment failure"
+            return {"code": 1, "messages": msg, "data": "", "status": False}
 
 # if __name__ == "__main__":
 #     client_config = "/Users/lijianxing/lijx-devops/python/fastapi/op-kube-manage-api/conf/kubeconf/dev_k8s-cluster-service.conf"
@@ -207,3 +300,55 @@ class k8sDeploymentManager:
 #     result = k8s_instance.create_kube_deployment("default", "k8s-nginx-web6", "1c2g", 1, "nginx", {"name": "value"}, 80)
 #     print(result)
 
+""" startup_probe_path 逻辑
+from kubernetes import client, config
+config.load_kube_config()
+deployment_name = "test-deployment"
+container_port = 80
+image = "nginx"
+liveness_probe_path = "/healthz"
+startup_probe_path = "/healthz-startup"
+# Deployment 基本信息
+metadata = client.V1ObjectMeta(name=deployment_name)
+spec = client.V1DeploymentSpec(
+    replicas=1,
+    selector=client.V1LabelSelector(
+        match_labels={"app": deployment_name}),
+    template=client.V1PodTemplateSpec(
+        metadata=client.V1ObjectMeta(name=deployment_name),
+        spec=client.V1PodSpec(
+            containers=[client.V1Container(
+                name=deployment_name,
+                image=image,
+                ports=[client.V1ContainerPort(container_port=container_port)],
+                liveness_probe=client.V1Probe(
+                    http_get=client.V1HTTPGetAction(
+                        path=liveness_probe_path,
+                        port=container_port),
+                    period_seconds=10,
+                    initial_delay_seconds=15,
+                    timeout_seconds=5,
+                    failure_threshold=3),
+                startup_probe=client.V1Probe(
+                    http_get=client.V1HTTPGetAction(
+                        path=startup_probe_path,
+                        port=container_port),
+                    period_seconds=10,
+                    initial_delay_seconds=10,
+                    failure_threshold=30))))
+)
+
+deployment = client.V1Deployment(
+    api_version="apps/v1",
+    kind="Deployment",
+    metadata=metadata,
+    spec=spec
+)
+
+apps_v1_api = client.AppsV1Api()
+response = apps_v1_api.create_namespaced_deployment(
+    namespace="default",
+    body=deployment
+)
+print("Deployment created. status='%s'" % response.metadata.self_link)
+"""

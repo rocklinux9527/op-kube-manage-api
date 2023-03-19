@@ -103,29 +103,41 @@ class K8sServiceManager:
         if not isinstance(selector_labels, dict):
             msg = "Service selector labels are not in the correct format."
             raise ValueError(f"{msg} Provided selector labels are of type {type(selector_labels)}")
-
-        body = client.V1Service(
-            api_version="v1",
-            kind="Service",
-            metadata=client.V1ObjectMeta(name=svc_name, labels=selector_labels),
-            spec=client.V1ServiceSpec(
-                selector=selector_labels,
-                ports=[client.V1ServicePort(port=port_num, target_port=target_port)],
-                type=service_type
-            )
-        )
-
         try:
-            response = self.v1.replace_namespaced_service(namespace=namespace, body=body)
-            return response
-        except ApiException as e:
-            if e.status == 409:
-                msg = (f"Failed to replace Svc ({svc_name}): the "
-                       f"{namespace} namespace does not contain an Svc with that name.")
+            svc = self.v1.read_namespaced_service(name=svc_name, namespace=namespace)
+            print("现在版本信息", svc)
+            body = client.V1Service(
+                api_version="v1",
+                kind="Service",
+                metadata=client.V1ObjectMeta(name=svc_name,labels=selector_labels, resource_version=svc.metadata.resource_version),
+                spec=client.V1ServiceSpec(
+                    selector=selector_labels,
+                    ports=[client.V1ServicePort(port=port_num, target_port=target_port)],
+                    type=service_type
+                )
+            )
+            response = self.v1.replace_namespaced_service(name=svc_name, namespace=namespace, body=body)
+            if response:
+                print(response)
+                return {
+                    "code": 0,
+                    "messages": "Update Service Success ",
+                    "data": response,
+                    "status": True
+                }
             else:
-                msg = f"Failed to update Svc ({svc_name}): {str(e)}"
+                return {"code": 1, "messages": msg, "data": "", "status": False}
 
-            raise Exception(msg)
+        except ApiException as e:
+            print(str(e))
+            status = getattr(e, "status")
+            if status == 409:
+                msg = (f"Failed to replace Svc ({svc_name}): the "f"{namespace} namespace does not contain an Svc with that name.")
+            elif status == 422:
+                msg = (f"update failed 422")
+            else:
+                msg = "Update Service failure"
+            return {"code": 1, "messages": msg, "data": "", "status": False}
 
     def delete_kube_svc(self, namespace, svc_name):
         """
@@ -136,7 +148,16 @@ class K8sServiceManager:
         """
         try:
             response = self.v1.delete_namespaced_service(namespace=namespace, name=svc_name)
-            return response
+            if response:
+                return {
+                    "code": 0,
+                    "messages": "Update Service Success ",
+                    "data": response,
+                    "status": True
+                }
+            else:
+                msg = "Delete Service failure"
+                return {"code": 1, "messages": msg, "data": "", "status": False}
         except ApiException as e:
             msg = f"Failed to delete Svc ({svc_name}): {str(e)}"
             raise Exception(msg)

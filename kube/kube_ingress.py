@@ -28,13 +28,25 @@ class k8sIngressManager():
             ingNameList.append(ingNameDict)
         return ingNameList
 
-    def get_kube_ingress_by_name(self, env, cluster, config_file, app_name):
-
-        data = get_kube_ingress(env, cluster, config_file)
-
+    def get_kube_ingress_by_name(self):
+        ingNameList = []
+        config.load_kube_config(config_file=self.client_config_file)
+        networking_api = client.NetworkingV1Api()
+        result = networking_api.list_namespaced_ingress(self.namespace).items
         try:
-            return [i for i in data if i["name"] == app_name][0]
-        except:
+            for ing in result:
+                ingNameDict = {}
+                ingNameDict["namespace"] = ing.metadata.namespace
+                ingNameDict["name"] = ing.metadata.name
+                ingNameDict["create_time"] = ing.metadata.creation_timestamp
+                if ing.metadata.labels == None:
+                    ingNameDict["labels"] = ""
+                else:
+                    ingNameDict["labels"] = ing.metadata.labels
+                ingNameList.append(ingNameDict)
+            return ingNameList
+        except Exception as e:
+            print(str(e))
             return dict()
 
     def create_kube_ingress(self, ingress_name, host, svc_name, svc_port, path="/",

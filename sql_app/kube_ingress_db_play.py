@@ -110,7 +110,7 @@ def delete_db_ingress(Id):
     return model_delete(IngressK8sData, Id)
 
 
-def query_kube_ingres(env, cluster_name,namespace, ingress_name, host, svc_name, svc_port, tls, tls_secret):
+def query_kube_ingres(env, cluster_name, namespace, ingress_name, host, svc_name, svc_port, tls, tls_secret):
     """
     1.跟进不同条件查询配置信息
     """
@@ -148,11 +148,23 @@ def query_kube_ingres(env, cluster_name,namespace, ingress_name, host, svc_name,
     session.close()
     return {"code": 0, "data": [i.to_dict for i in data], "messages": "query success", "status": True}
 
+def query_kube_ingress_by_id(ID):
+    """
+    1.跟进id条件查询配置信息
+    """
+    session = SessionLocal()
+    data = session.query(IngressK8sData)
+    results = data.filter_by(id=ID).first()
+    if not (ID and results):
+        return {"code": 1, "data": "", "status": False}
+    else:
+        return {"code": 0, "data": results, "status": True}
+
 def query_kube_ingress_by_name(env_name, cluster_name, ingress_name, namespace_name):
     session = SessionLocal()
     data = session.query(IngressK8sData)
-    if env_name and cluster_name:
-        results = data.filter(and_(IngressK8sData.env == env_name, IngressK8sData.cluster_name == cluster_name, IngressK8sData.ingress_name == ingress_name, IngressK8sData.namespace == namespace_name)).all()
+    results = data.filter(and_(IngressK8sData.env == env_name, IngressK8sData.cluster_name == cluster_name, IngressK8sData.ingress_name == ingress_name, IngressK8sData.namespace == namespace_name)).all()
+    if env_name and cluster_name and results:
         return {"code": 0, "data": [i.to_dict for i in results], "status": True}
     else:
         return {"code": 1, "data": "", "status": False}

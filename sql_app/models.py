@@ -41,7 +41,7 @@ class DeployK8sData(Base):
     image_pull_secrets = Column(Text, nullable=True, comment="镜像拉取secrets")
     health_liven_ess = Column(Text, nullable=True, comment="探活接口")
     health_readiness = Column(Text, nullable=True, comment="流量控制接口")
-    deploy_id = Column(Integer, comment="发布记录Id")
+    deploy_id = Column(String(24), comment="发布记录Id")
     deploy_time = Column(DateTime, server_default=func.now(), comment="创建时间")
 
     @property

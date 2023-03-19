@@ -6,7 +6,8 @@ from typing import List, Optional, Set, Dict, Any
 from starlette.middleware.cors import CORSMiddleware
 import uvicorn
 import json
-
+import random
+import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 # ops kube func method
@@ -31,12 +32,13 @@ from sql_app.models import ServiceK8sData
 from sql_app.kube_ns_db_play import insert_db_ns, delete_db_ns, query_ns
 
 # db ops kube service
-from sql_app.kub_svc_db_play import insert_db_svc, delete_db_svc, query_kube_svc
+from sql_app.kub_svc_db_play import insert_db_svc, delete_db_svc, query_kube_svc, query_kube_svc_by_name, updata_kube_svc, \
+    query_kube_svc_by_id
 
 from kube.kube_ingress import k8sIngressManager
 # db ops kube ingress
 from sql_app.kube_ingress_db_play import insert_db_ingress, updata_db_ingress, delete_db_ingress, query_kube_ingres, \
-    query_kube_ingress_by_name
+    query_kube_ingress_by_name, query_kube_ingress_by_id
 
 #  k8s install deploy
 
@@ -304,6 +306,13 @@ class deleteDeployK8S(BaseModel):
     namespace: str
 
 
+def generate_deployment_id():
+    current_date = datetime.datetime.now().strftime("%Y%m%d")
+    random_string = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz', k=4))
+    deployment_id = f"{current_date}-{random_string}"
+    return deployment_id
+
+
 @app.post("/v1/k8s/deployment/plan/", summary="Add deployment App Plan", tags=["DeployKubernetes"])
 async def post_deploy_plan(request: Request, request_data: CreateDeployK8S) -> Dict[str, Any]:
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -313,6 +322,8 @@ async def post_deploy_plan(request: Request, request_data: CreateDeployK8S) -> D
     data = request_data.dict()
     cluster_name = data.get("cluster")
     env_name = data.get("env")
+    health_liven_ess_path = data.get("health_liven_ess")
+    health_readiness_path = data.get("health_readiness")
     if not (cluster_name and env_name):
         raise HTTPException(status_code=400, detail="The cluster or environment does not exist")
 
@@ -338,9 +349,10 @@ async def post_deploy_plan(request: Request, request_data: CreateDeployK8S) -> D
         insert_deploy_instance = k8sDeploymentManager(client_path.get("client_key_path"), data.get('namespace'))
         insert_result_data = insert_deploy_instance.create_kube_deployment(
             data.get('namespace'), data.get("app_name"), data.get("resources"), data.get("replicas"),
-            data.get("image"), deploy_env_dict, data.get("ports"))
+            data.get("image"), deploy_env_dict, data.get("ports"), health_liven_ess_path,health_readiness_path)
         if insert_result_data.get("code") != 0:
             raise HTTPException(status_code=400, detail=insert_result_data.get("message"))
+        deploy_id = generate_deployment_id()
         result = insert_kube_deployment(item_dict.get("app_name"), item_dict.get("env"),
                                         item_dict.get("cluster"),
                                         item_dict.get("namespace"), item_dict.get("resources"),
@@ -350,7 +362,7 @@ async def post_deploy_plan(request: Request, request_data: CreateDeployK8S) -> D
                                         item_dict.get("ports"), item_dict.get("volumeMounts"),
                                         item_dict.get("volume"),
                                         item_dict.get("image_pull_secrets"), item_dict.get("health_liven_ess"),
-                                        item_dict.get("health_readiness"), "")
+                                        item_dict.get("health_readiness"), deploy_id)
         user_request_data = await request.json()
         insert_ops_bot_log("Insert kube deploy app ", json.dumps(user_request_data), "post", json.dumps(result))
         return result
@@ -361,26 +373,48 @@ async def put_deploy_plan(request: Request, request_data: UpdateDeployK8S):
     item_dict = request_data.dict()
     user_request_data = await request.json()
     data = request_data.dict()
-    env_name = data.get("env_name")
+    env_name = data.get("env")
     cluster_name = data.get("cluster")
-    if not all(data.values()):
+    deployment_name = data.get('deployment_name')
+    app_name = data.get('app_name')
+    replicas_name = data.get('replicas')
+    image_name = data.get("image")
+    namespace_name = data.get('namespace')
+    resources_name = data.get('resources')
+    deploy_env_name = data.get('deploy_env')
+    container_port_name = data.get('ports')
+    health_liven_ess_path = data.get("health_liven_ess")
+    health_readiness_path = data.get("health_readiness")
+
+    if not (env_name and cluster_name and deployment_name and replicas_name
+            and image_name and namespace_name and app_name
+            and resources_name and deploy_env_name and container_port_name):
         raise HTTPException(status_code=400, detail="Invalid input parameters")
     session = SessionLocal()
     deployment = session.query(DeployK8sData).filter(DeployK8sData.id == data.get('id')).first()
     if not deployment:
         raise HTTPException(status_code=404, detail="Deployment not found")
+
+    deploy_env_dict = {}
+    try:
+        for env in deploy_env_name.split(","):
+            k, v = env.split("=")
+            deploy_env_dict[k] = v
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Failed to create Deployment  because the deploy env format is incorrect")
+
     result_cluster_info = query_kube_db_env_cluster_all(env_name, cluster_name)
     for client_path in result_cluster_info.get("data"):
         if not (client_path.get("client_key_path")):
             raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
         update_deploy_instance = k8sDeploymentManager(client_path.get("client_key_path"), data.get('namespace'))
-
         data_result = update_deploy_instance.replace_kube_deployment(data.get('deployment_name'),
                                                                      data.get('replicas'), data.get("image"),
-                                                                     data.get('namespace'))
-        print("执行更新操作", data_result)
+                                                                     data.get('namespace'), resources_name, deploy_env_dict,
+                                                                     container_port_name,health_liven_ess_path,health_readiness_path)
         if data_result.get("code") != 0:
             raise HTTPException(status_code=500, detail="Failed to update kubernetes deployment")
+        update_id = generate_deployment_id()
         result = updata_kube_deployment(data.get('id'), item_dict.get("app_name"), item_dict.get("env"),
                                         item_dict.get("cluster"), item_dict.get("namespace"),
                                         item_dict.get("resources"), item_dict.get("replicas"),
@@ -389,9 +423,8 @@ async def put_deploy_plan(request: Request, request_data: UpdateDeployK8S):
                                         item_dict.get("ports"), item_dict.get("volumeMounts"),
                                         item_dict.get("volume"), item_dict.get("image_pull_secrets"),
                                         item_dict.get("health_liven_ess")
-                                        , item_dict.get("health_readiness"))
-        print(result)
-        insert_ops_bot_log("Update kube deploy app", json.dumps(user_request_data), "post", json.dumps(deployment))
+                                        , item_dict.get("health_readiness"), update_id)
+        insert_ops_bot_log("Update kube deploy app", json.dumps(user_request_data), "post", json.dumps(result))
         session.close()
         return result
 
@@ -419,6 +452,7 @@ async def del_deploy_plan(request: Request, request_data: deleteDeployK8S):
             "status": True,
             "data": "failure"
         }
+
     result_cluster_info = query_kube_db_env_cluster_all(env_name, cluster_name)
     if not (result_cluster_info.get("data")):
         raise HTTPException(status_code=400, detail=f"环境:{env_name}  集群:{cluster_name}  不存在请提前配置集群和环境")
@@ -533,80 +567,69 @@ async def post_service_plan(request: Request, request_data: CreateSvcK8S):
 
 
 @app.put("/v1/k8s/service/plan/", summary="Change Service App Plan", tags=["ServiceKubernetes"])
-async def put_service_plan(
-        request: Request,
-        request_data: UpdateSvcK8S,
-        db: Session = Depends(get_db)):
+async def put_service_plan(request: Request, request_data: UpdateSvcK8S):
     data = request_data.dict()
+    user_request_data = await request.json()
     env_name = data.get("env")
-    cluster_name = data.get('cluster')
+    ID = data.get("id")
+    cluster_name = data.get('cluster_name')
     namespace_name = data.get("namespace")
-    app_name = data.get("app_name")
-    replicas = data.get('replicas')
-    image_name = data.get('image')
-    if not (
-            env_name and cluster_name and namespace_name and app_name and replicas and image_name):
+    svc_name = data.get("svc_name")
+    svc_port = data.get("svc_port")
+    target_port = data.get("target_port")
+    service_type = data.get("svc_type")
+    selector_labels = data.get("selector_labels")
+    if not (env_name and cluster_name and namespace_name and svc_name and svc_port and target_port and selector_labels):
         raise HTTPException(status_code=400, detail="Missing parameter")
-    deployment = query_kube_deployment_by_name(data.get("env"), data.get("cluster"), data.get('app_name'), data.get('namespace'))
-    if not (deployment.get("data")):
-        raise HTTPException(status_code=404, detail="Deployment not found")
+    svc_by_id = query_kube_svc_by_id(ID)
+    if not (svc_by_id.get("data")):
+        raise HTTPException(status_code=404, detail="db is service  id not found")
+    service = query_kube_svc_by_name(env_name, cluster_name, svc_name, namespace_name)
+    if not (service.get("data")):
+        raise HTTPException(status_code=404, detail="service cluster {cl} info not found".format(cl=cluster_name))
     result_cluster_info = query_kube_db_env_cluster_all(env_name, cluster_name)
     if not (result_cluster_info.get("data")):
         raise HTTPException(status_code=400, detail=f"环境:{env_name}  集群:{cluster_name}  不存在请提前配置集群和环境")
+    labels = {}
+    try:
+        for sl in selector_labels.split(","):
+            k, v = sl.split("=")
+            labels[k] = v
+    except Exception as e:
+        return "Failed to create SVC because the label format is incorrect"
     for client_path in result_cluster_info.get("data"):
         if not (client_path.get("client_key_path")):
             raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
-        update_deploy_instance = k8sDeploymentManager(client_path.get("client_key_path"), data.get('namespace'))
-        data_result = update_deploy_instance.replace_kube_deployment(data.get('deployment_name'),
-                                                                     data.get('replicas'),
-                                                                     data.get("image"),
-                                                                     data.get('namespace'))
+        update_svc_instance = K8sServiceManager(client_path.get("client_key_path"))
+        data_result = update_svc_instance.replace_kube_svc(namespace_name, svc_name, svc_port, target_port, labels, service_type)
         if data_result.get("code") == 0:
-            updated_deployment = crud.update_deployment(
-                db=db,
-                deployment=deployment,
-                app_name=data.get("app_name"),
-                env=data.get("env"),
-                cluster=data.get("cluster"),
-                namespace=data.get("namespace"),
-                resources=data.get("resources"),
-                replicas=data.get("replicas"),
-                image=data.get("image"),
-                affinity=data.get("affinity"),
-                ant_affinity=data.get("ant_affinity"),
-                deploy_env=data.get("deploy_env"),
-                ports=data.get("ports"),
-                volumeMounts=data.get("volumeMounts"),
-                volume=data.get("volume"),
-                image_pull_secrets=data.get("image_pull_secrets"),
-                health_liven_ess=data.get("health_liven_ess"),
-                health_readiness=data.get("health_readiness")
-            )
-
-            if updated_deployment:
-                insert_ops_bot_log("Update kube deploy app ", json.dumps(await request.json()), "post",
-                                   json.dumps(updated_deployment))
-                return updated_deployment
-        raise HTTPException(status_code=400, detail="Failed to update kube deploy app")
+            updated_svc = updata_kube_svc(ID, env_name, cluster_name, namespace_name, svc_name, selector_labels, svc_port,
+                                          service_type, target_port)
+            if updated_svc:
+                insert_ops_bot_log("Update kube deploy app ", json.dumps(user_request_data), "post",
+                                   json.dumps(updated_svc))
+                return updated_svc
+        raise HTTPException(status_code=400, detail="Failed to update kube service app")
 
 
 @app.get("/v1/k8s/service/plan/", summary="Get Service App Plan", tags=["ServiceKubernetes"])
-def get_service_plan(namespace: Optional[str] = None, svc_name: Optional[str] = None, svc_port: Optional[str] = None,
+def get_service_plan(env: Optional[str] = None, cluster_name: Optional[str] = None, namespace: Optional[str] = None,
+                     svc_name: Optional[str] = None, selector_labels: Optional[str] = None, svc_port: Optional[str] = None,
                      svc_type: Optional[str] = None, target_port: Optional[str] = None):
-    result_data = query_kube_svc(namespace, svc_name, svc_port, svc_type, target_port)
+    result_data = query_kube_svc(env, cluster_name, namespace, svc_name, selector_labels, svc_port, svc_type, target_port)
     return result_data
 
 
 @app.delete("/v1/k8s/service/plan/", summary="Delete Service App Plan", tags=["ServiceKubernetes"])
 async def delete_service_plan(ReQuest: Request, request_data: deleteSvcK8S):
-    app_name = request_data.svc_name
+    svc_name = request_data.svc_name
     data = request_data.dict()
     env_name = data.get("env")
     cluster_name = data.get("cluster_name")
     app_id = data.get("id")
     namespace_name = request_data.namespace
     userRequestData = await ReQuest.json()
-    if not (app_name and namespace_name):
+    if not (svc_name and namespace_name):
         raise HTTPException(status_code=400, detail="Incorrect parameters")
     if not (env_name and cluster_name):
         raise HTTPException(status_code=400, detail="Incorrect cluster or env parameters")
@@ -614,11 +637,11 @@ async def delete_service_plan(ReQuest: Request, request_data: deleteSvcK8S):
     for client_path in result_cluster_info.get("data"):
         if not (client_path.get("client_key_path")):
             raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
-        delete_deploy_instance = k8sDeploymentManager(client_path.get("client_key_path"), namespace_name)
-        result_data = delete_deploy_instance.delete_kube_deployment(namespace_name, app_name)
+        delete_svc_instance = K8sServiceManager(client_path.get("client_key_path"))
+        result_data = delete_svc_instance.delete_kube_svc(namespace_name, svc_name)
         if result_data.get("code") == 0:
             delete_instance = delete_db_svc(app_id)
-            insert_ops_bot_log("Delete kube Deploy App", json.dumps(userRequestData), "delete", json.dumps(deleteInstance))
+            insert_ops_bot_log("Delete kube Deploy App", json.dumps(userRequestData), "delete", json.dumps(delete_instance))
             return delete_instance
         else:
             raise HTTPException(status_code=400, detail="Delete deploy App failure")
@@ -722,6 +745,9 @@ async def post_ingress_plan(ReQuest: Request, request_data: CreateIngressK8S):
 async def put_ingress_plan(request: Request, data: UpdateIngressK8S):
     item_dict = data.dict()
     user_request_data = await request.json()
+    ID = data.id
+    env_name = data.env
+    cluster_name = data.cluster_name
     namespace_name = data.namespace
     ingres_name = data.ingress_name
     host_name = data.host
@@ -730,6 +756,10 @@ async def put_ingress_plan(request: Request, data: UpdateIngressK8S):
     used = data.used
     if not (namespace_name and ingres_name and host_name and svc_name and svc_port and used):
         return {'code': 1, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
+    query_ingres_id = query_kube_ingress_by_id(ID)
+    if not query_ingres_id.get("data"):
+        return {'code': 1, 'messages': "ingress Id not exist , check it", "data": "", "status": False}
+    result_cluster_info = query_kube_db_env_cluster_all(env_name, cluster_name)
     for client_path in result_cluster_info.get("data"):
         if not (client_path.get("client_key_path")):
             raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
@@ -746,22 +776,22 @@ async def put_ingress_plan(request: Request, data: UpdateIngressK8S):
             data.tls_secret
         )
         if data_result.get("code") == 0:
-            with Session(engine) as session:
-                result = updata_db_ingress(
-                    session,
-                    item_dict.get("id"),
-                    item_dict.get("namespace"),
-                    item_dict.get("ingress_name"),
-                    item_dict.get("host"),
-                    item_dict.get("svc_name"),
-                    item_dict.get("path"),
-                    item_dict.get("path_type"),
-                    item_dict.get("ingress_class_name"),
-                    item_dict.get("tls"),
-                    item_dict.get("tls_secret"),
-                    item_dict.get("svc_port"),
-                    item_dict.get("used")
-                )
+            result = updata_db_ingress(
+                item_dict.get("id"),
+                item_dict.get("env"),
+                item_dict.get("cluster_name"),
+                item_dict.get("namespace"),
+                item_dict.get("ingress_name"),
+                item_dict.get("host"),
+                item_dict.get("svc_name"),
+                item_dict.get("path"),
+                item_dict.get("path_type"),
+                item_dict.get("ingress_class_name"),
+                item_dict.get("tls"),
+                item_dict.get("tls_secret"),
+                item_dict.get("svc_port"),
+                item_dict.get("used")
+            )
             if result.get("code") == 0:
                 insert_ops_bot_log("Update kube ingress app", json.dumps(user_request_data), "post", json.dumps(result))
                 return result
@@ -769,19 +799,34 @@ async def put_ingress_plan(request: Request, data: UpdateIngressK8S):
 
 
 @app.get("/v1/k8s/ingress/plan/", summary="Get Ingress App Plan", tags=["IngressKubernetes"])
-def get_ingress_plan(namespace: Optional[str] = None, ingress_name: Optional[str] = None, host: Optional[str] = None,
+def get_ingress_plan(env: Optional[str] = None, cluster_name: Optional[str] = None, namespace: Optional[str] = None,
+                     ingress_name: Optional[str] = None, host: Optional[str] = None,
                      svc_name: Optional[str] = None, svc_port: Optional[str] = None, tls: Optional[str] = None,
                      tls_secret: Optional[str] = None):
-    result_data = query_kube_ingres(namespace, ingress_name, host, svc_name, svc_port, tls, tls_secret)
+    result_data = query_kube_ingres(env, cluster_name, namespace, ingress_name, host, svc_name, svc_port, tls, tls_secret)
     return result_data
 
 
-@app.get("/v1/k8s/sys/ingress/", summary="Get sys Ingress App Plan", tags=["IngressKubernetesSys"])
-def get_sys_ingress_plan(client_config_path: Optional[str]):
-    if client_config_path:
-        ns_k8s_instance = k8sIngressManager(client_config_path, "dev")
+@app.get("/v1/k8s/sys/ns-by-ingress/", summary="Get sys Ingress App Plan", tags=["IngressKubernetesSys"])
+def get_ns_by_ingress_plan(env: Optional[str] = None, cluster_name: Optional[str] = None, namespace: Optional[str] = None):
+    result_cluster_info = query_kube_db_env_cluster_all(env, cluster_name)
+    for client_path in result_cluster_info.get("data"):
+        if not (client_path.get("client_key_path")):
+            raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
+        ns_k8s_instance = k8sIngressManager(client_path.get("client_key_path"), namespace)
+        ns_result = ns_k8s_instance.get_kube_ingress_by_name()
+        return ns_result
+
+
+@app.get("/v1/k8s/sys/ns-all-ingress/", summary="Get sys Ingress App Plan", tags=["IngressKubernetesSys"])
+def get_ns_all_ingress_plan(env: Optional[str] = None, cluster_name: Optional[str] = None):
+    result_cluster_info = query_kube_db_env_cluster_all(env, cluster_name)
+    for client_path in result_cluster_info.get("data"):
+        if not (client_path.get("client_key_path")):
+            raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
+        ns_k8s_instance = k8sIngressManager(client_path.get("client_key_path"), "dev")
         ns_result = ns_k8s_instance.get_kube_ingress_all()
-    return ns_result
+        return ns_result
 
 
 @app.delete("/v1/k8s/ingress/plan/", summary="Delete Ingress App Plan", tags=["IngressKubernetes"])

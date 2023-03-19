@@ -188,8 +188,8 @@ def query_kube_deployment(env, cluster, app_name, image, ports, image_pull_secre
 def query_kube_deployment_by_name(env_name, cluster_name, app_name, namespace_name):
     session = SessionLocal()
     data = session.query(DeployK8sData)
-    if env_name and cluster_name:
-        results = data.filter(and_(DeployK8sData.env == env_name, DeployK8sData.cluster == cluster_name, DeployK8sData.app_name == app_name, DeployK8sData.namespace == namespace_name)).all()
-        return {"code": 0, "data": [i.to_dict for i in results], "status": True}
-    else:
+    results = data.filter(and_(DeployK8sData.env == env_name, DeployK8sData.cluster == cluster_name, DeployK8sData.app_name == app_name, DeployK8sData.namespace == namespace_name)).all()
+    if not env_name and cluster_name and results:
         return {"code": 1, "data": "", "status": False}
+    else:
+        return {"code": 0, "data": [i.to_dict for i in results], "status": True}

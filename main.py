@@ -35,7 +35,8 @@ from sql_app.kub_svc_db_play import insert_db_svc, delete_db_svc, query_kube_svc
 
 from kube.kube_ingress import k8sIngressManager
 # db ops kube ingress
-from sql_app.kube_ingress_db_play import insert_db_ingress, updata_db_ingress, delete_db_ingress, query_kube_ingres
+from sql_app.kube_ingress_db_play import insert_db_ingress, updata_db_ingress, delete_db_ingress, query_kube_ingres, \
+    query_kube_ingress_by_name
 
 #  k8s install deploy
 
@@ -394,6 +395,7 @@ async def put_deploy_plan(request: Request, request_data: UpdateDeployK8S):
         session.close()
         return result
 
+
 @app.get("/v1/k8s/deployment/plan/", summary="Get deployment App Plan", tags=["DeployKubernetes"])
 def get_deploy_plan(env: Optional[str] = None, cluster: Optional[str] = None, app_name: Optional[str] = None,
                     image: Optional[str] = None, ports: Optional[str] = None,
@@ -513,21 +515,21 @@ async def post_service_plan(request: Request, request_data: CreateSvcK8S):
                 target_port = data.get('target_port')
                 svc_type = data.get('svc_type')
 
-                insert_result_data = insert_svc_instance.create_kube_svc(namespace_name, svc_name, svc_port, target_port, svc_type, labels)
+                insert_result_data = insert_svc_instance.create_kube_svc(namespace_name, svc_name, svc_port, target_port,
+                                                                         svc_type, labels)
                 if insert_result_data.get("code") == 0:
                     insert_db_result_data = insert_db_svc(item_dict.get("env"),
-                                  item_dict.get("cluster_name"),
-                                  item_dict.get("namespace"),
-                                  item_dict.get("svc_name"),
-                                  item_dict.get("selector_labels"),
-                                  item_dict.get("svc_port"),
-                                  item_dict.get("svc_type"),
-                                  item_dict.get("target_port")
-                                  )
+                                                          item_dict.get("cluster_name"),
+                                                          item_dict.get("namespace"),
+                                                          item_dict.get("svc_name"),
+                                                          item_dict.get("selector_labels"),
+                                                          item_dict.get("svc_port"),
+                                                          item_dict.get("svc_type"),
+                                                          item_dict.get("target_port")
+                                                          )
                     insert_ops_bot_log("Insert kube service app ", json.dumps(user_request_data), "post",
                                        json.dumps(insert_db_result_data))
                 return insert_db_result_data
-
 
 
 @app.put("/v1/k8s/service/plan/", summary="Change Service App Plan", tags=["ServiceKubernetes"])
@@ -664,71 +666,56 @@ class deleteIngressK8S(BaseModel):
 
 
 @app.post("/v1/k8s/ingress/plan/", summary="Add Ingress App Plan", tags=["IngressKubernetes"])
-async def post_ingress_plan(ReQuest: Request, request_data: CreateIngressK8S, db: Session = Depends(get_db)):
+async def post_ingress_plan(ReQuest: Request, request_data: CreateIngressK8S):
+    from kube.kube_ingress import k8sIngressManager
     user_request_data = await ReQuest.json()
     env_name = request_data.env
     cluster_name = request_data.cluster_name
     namespace_name = request_data.namespace
-    ingres_name = request_data.ingress_name
+    ingress_name = request_data.ingress_name
     host_name = request_data.host
+    path_name = request_data.path
+    path_type = request_data.path_type
+    ingress_class_name = request_data.ingress_class_name
+    tls_name = request_data.tls
+    tls_secret = request_data.tls_secret
     svc_name = request_data.svc_name
     svc_port = request_data.svc_port
     used = request_data.used
 
-    if not all([namespace_name, ingres_name, host_name, svc_name, svc_port, used]):
+    if not all([namespace_name, ingress_name, host_name, svc_name, svc_port, used]):
         raise HTTPException(status_code=400, detail="Invalid request data")
 
-    ingress = crud.get_ingress_by_name(db, ingress_name=ingres_name)
-    if ingress:
-        raise HTTPException(status_code=409, detail=f"Ingress {ingres_name} already exists")
+    result_ingress_name = query_kube_ingress_by_name(env_name, cluster_name, ingress_name, namespace_name)
+    if result_ingress_name.get("data"):
+        raise HTTPException(status_code=409, detail=f"Ingress {ingress_name} already exists")
+    result_cluster_info = query_kube_db_env_cluster_all(env_name, cluster_name)
     for client_path in result_cluster_info.get("data"):
         if not (client_path.get("client_key_path")):
             raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
-        try:
-            api_instance = client.ExtensionsV1beta1Api(client.Configuration.from_kube_config(client_path.get("client_key_path")))
-            body = client.V1beta1Ingress(
-                metadata=client.V1ObjectMeta(name=ingres_name),
-                spec=client.V1beta1IngressSpec(
-                    rules=[
-                        client.V1beta1IngressRule(
-                            host=host_name,
-                            http=client.V1beta1HTTPIngressRuleValue(
-                                paths=[
-                                    client.V1beta1HTTPIngressPath(
-                                        path=request_data.path,
-                                        backend=client.V1beta1IngressBackend(
-                                            service_name=svc_name,
-                                            service_port=svc_port
-                                        )
-                                    )
-                                ]
-                            )
-                        )
-                    ]
-                )
+        kube_ingress_instance = k8sIngressManager(client_path.get("client_key_path"), namespace_name)
+        ingres_result = kube_ingress_instance.create_kube_ingress(ingress_name, host_name, svc_name, svc_port, path_name,
+                                                                  path_type, ingress_class_name, tls_name, tls_secret)
+        if ingres_result.get("code") == 0:
+            created_ingress = insert_db_ingress(
+                env=env_name,
+                cluster_name=cluster_name,
+                namespace=namespace_name,
+                ingress_name=ingress_name,
+                host=host_name,
+                svc_name=svc_name,
+                svc_port=svc_port,
+                path=path_name,
+                path_type=path_type,
+                ingress_class_name=ingress_class_name,
+                tls=tls_name,
+                tls_secret=tls_secret,
+                used=used
             )
-            api_instance.create_namespaced_ingress(namespace_name, body)
-        except ApiException as e:
-            raise HTTPException(status_code=500, detail=str(e))
-
-        created_ingress = insert_db_ingress(
-            env=env_name,
-            cluster_name=cluster_name,
-            namespace=namespace_name,
-            ingress_name=ingres_name,
-            host=host_name,
-            svc_name=svc_name,
-            svc_port=svc_port,
-            path=request_data.path,
-            path_type=request_data.path_type,
-            ingress_class_name=request_data.ingress_class_name,
-            tls=request_data.tls,
-            tls_secret=request_data.tls_secret,
-            used=used
-        )
-        insert_ops_bot_log("Insert kube ingress app ", json.dumps(user_request_data), "post",
-                           json.dumps(created_ingress))
-        return created_ingress
+            insert_ops_bot_log("Insert kube ingress app ", json.dumps(user_request_data), "post", json.dumps(created_ingress))
+            return created_ingress
+        else:
+            raise HTTPException(status_code=400, detail="Create ingress App failure")
 
 
 @app.put("/v1/k8s/ingress/plan/", summary="Change Ingress App Plan", tags=["IngressKubernetes"])
@@ -799,18 +786,23 @@ def get_sys_ingress_plan(client_config_path: Optional[str]):
 
 @app.delete("/v1/k8s/ingress/plan/", summary="Delete Ingress App Plan", tags=["IngressKubernetes"])
 async def delete_ingress_plan(request: Request, request_data: deleteIngressK8S):
+    from kube.kube_ingress import k8sIngressManager
     data = request_data.dict()
+    user_request_data = await request.json()
+    env_name = request_data.env
+    cluster_name = request_data.cluster_name
     if not all(data.values()):
         return {"code": 1, "messages": "Delete Ingress App failure, Incorrect parameters", "status": True,
                 "data": "failure"}
+    result_cluster_info = query_kube_db_env_cluster_all(env_name, cluster_name)
     for client_path in result_cluster_info.get("data"):
         if not (client_path.get("client_key_path")):
             raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
-        ingress_manager = K8sIngressManager(client_path.get("client_key_path"), data["namespace"])
+        ingress_manager = k8sIngressManager(client_path.get("client_key_path"), data["namespace"])
         result_data = ingress_manager.delete_kube_ingress(data["namespace"], data["ingress_name"])
         if result_data["code"] == 0:
             delete_instance = delete_db_ingress(data["id"])
-            insert_ops_bot_log("Delete kube Ingress App", await request.json(), "delete", delete_instance.json())
+            insert_ops_bot_log("Delete kube Ingress App", json.dumps(user_request_data), "delete", json.dumps(delete_instance))
             return delete_instance
         else:
             return {"code": 1, "messages": "delete Ingress App failure", "status": True, "data": "failure"}

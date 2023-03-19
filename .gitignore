@@ -1,6 +1,6 @@
-*.idea
+.idea
 *.xml
 .test.py
 venv/*
-
+.DS_Store
 

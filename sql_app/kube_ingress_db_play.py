@@ -2,7 +2,7 @@ from sql_app.db_play import model_create, model_update, model_updateId, model_de
 from sql_app.models import IngressK8sData
 from sqlalchemy.orm import sessionmaker
 from sql_app.database import engine
-
+from sqlalchemy import and_
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -147,3 +147,12 @@ def query_kube_ingres(env, cluster_name,namespace, ingress_name, host, svc_name,
     session.commit()
     session.close()
     return {"code": 0, "data": [i.to_dict for i in data], "messages": "query success", "status": True}
+
+def query_kube_ingress_by_name(env_name, cluster_name, ingress_name, namespace_name):
+    session = SessionLocal()
+    data = session.query(IngressK8sData)
+    if env_name and cluster_name:
+        results = data.filter(and_(IngressK8sData.env == env_name, IngressK8sData.cluster_name == cluster_name, IngressK8sData.ingress_name == ingress_name, IngressK8sData.namespace == namespace_name)).all()
+        return {"code": 0, "data": [i.to_dict for i in results], "status": True}
+    else:
+        return {"code": 1, "data": "", "status": False}

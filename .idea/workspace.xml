@@ -1,16 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
   <component name="ChangeListManager">
-    <list default="true" id="f41d409f-edf2-4191-aa1d-d0422cf3a462" name="Default Changelist" comment="">
+    <list default="true" id="ecfe711e-d0e3-481e-b245-4ca68161c572" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kube/kube_deployment.py" beforeDir="false" afterPath="$PROJECT_DIR$/kube/kube_deployment.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kube/kube_ingress.py" beforeDir="false" afterPath="$PROJECT_DIR$/kube/kube_ingress.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kube/kube_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/kube/kube_service.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql_app/kub_svc_db_play.py" beforeDir="false" afterPath="$PROJECT_DIR$/sql_app/kub_svc_db_play.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql_app/kube_deploy_db_play.py" beforeDir="false" afterPath="$PROJECT_DIR$/sql_app/kube_deploy_db_play.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql_app/kube_ingress_db_play.py" beforeDir="false" afterPath="$PROJECT_DIR$/sql_app/kube_ingress_db_play.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql_app/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/sql_app/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sql_app/kube_cnfig_db_play.py" beforeDir="false" afterPath="$PROJECT_DIR$/sql_app/kube_cnfig_db_play.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -23,6 +20,9 @@
   <component name="KubernetesApiPersistence">
     <option name="context" value="arn:aws:eks:us-west-2:287417486038:cluster/c2-eks" />
     <option name="namespace" value="default" />
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
   </component>
   <component name="ProjectId" id="2N92GnHvqgvNI0vnuOQa1JLBWon" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
@@ -98,9 +98,5 @@
         </entry>
       </map>
     </option>
-    <option name="oldMeFiltersMigrated" value="true" />
-  </component>
-  <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/op_kube_manage_api$main.coverage" NAME="main Coverage Results" MODIFIED="1679222451110" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

@@ -86,6 +86,7 @@ def delete_kube_config(Id):
     """
     return model_delete(KubeK8sConfig, Id)
 
+
 def query_kube_config_id(id):
     """
     1.id query data
@@ -101,7 +102,6 @@ def query_kube_config_id(id):
         session.commit()
         session.close()
         return {"code": 1, "data": str(e), "messages": "query failed ", "status": False}
-
 
 
 def query_kube_config(env, cluster_name, server_address, client_key_path):
@@ -147,6 +147,31 @@ def query_kube_db_env_cluster_all(env, cluster_name):
         session.commit()
         session.close()
 
+
+def query_kube_db_env_cluster_wrapper():
+    def decorator(func):
+        def wrapper(env, cluster_name):
+            print("环境信息来了",env,cluster_name)
+            """
+            1.查询数据库环境和集群信息
+            """
+            session = SessionLocal()
+            data = session.query(KubeK8sConfig)
+            try:
+                if env and cluster_name:
+                    results = data.filter(
+                        and_(KubeK8sConfig.env == env, KubeK8sConfig.cluster_name == cluster_name)).all()
+                    return {"code": 0, "data": [i.to_dict for i in results], "status": True}
+                else:
+                    return {"code": 1, "data": "", "status": False}
+            except Exception as e:
+                print(e)
+                session.commit()
+                session.close()
+
+        return wrapper
+
+    return decorator
 
 # def query_kube_env_cluster_all():
 #     """

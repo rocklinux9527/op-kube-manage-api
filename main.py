@@ -23,7 +23,7 @@ from sqlalchemy.orm import sessionmaker, query, Session
 from sql_app.database import engine
 from sql_app.ops_log_db_play import query_operate_ops_log, insert_ops_bot_log
 from sql_app.kube_cnfig_db_play import insert_kube_config, updata_kube_config, delete_kube_config, query_kube_config, \
-    query_kube_db_env_cluster_all, query_kube_config_id
+    query_kube_db_env_cluster_all, query_kube_config_id,query_kube_db_env_cluster_wrapper
 from sql_app.kube_deploy_db_play import insert_kube_deployment, updata_kube_deployment, delete_kube_deployment, \
     query_kube_deployment, query_kube_deployment_by_name
 
@@ -830,6 +830,7 @@ def get_ns_all_ingress_plan(env: Optional[str] = None, cluster_name: Optional[st
 
 
 @app.delete("/v1/k8s/ingress/plan/", summary="Delete Ingress App Plan", tags=["IngressKubernetes"])
+@query_kube_db_env_cluster_wrapper()
 async def delete_ingress_plan(request: Request, request_data: deleteIngressK8S):
     from kube.kube_ingress import k8sIngressManager
     data = request_data.dict()

@@ -153,6 +153,7 @@ def delete_kube_deployment(Id):
 
 
 def query_kube_deployment(env, cluster, app_name, image, ports, image_pull_secrets, deploy_id):
+    from tools.config import k8sDeployHeader
     """
     1.跟进不同条件查询配置信息
     """
@@ -182,7 +183,7 @@ def query_kube_deployment(env, cluster, app_name, image, ports, image_pull_secre
         print(e)
     session.commit()
     session.close()
-    return {"code": 0, "data": [i.to_dict for i in data], "messages": "query success", "status": True}
+    return {"code": 0, "total": len([i.to_dict for i in data]), "data": [i.to_dict for i in data], "messages": "query success", "status": True, "columns":k8sDeployHeader}
 
 
 def query_kube_deployment_by_name(env_name, cluster_name, app_name, namespace_name):

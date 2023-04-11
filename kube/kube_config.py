@@ -6,7 +6,8 @@ script_path = os.path.join(HOME_DIR, "tools")
 conf_path = os.path.join(HOME_DIR, "conf")
 os.sys.path.append(script_path)
 os.sys.path.append(conf_path)
-
+import asyncio
+import os
 from tools.nacosGet import getNacosInfo
 
 
@@ -91,18 +92,21 @@ def get_kube_config_content(env, cluster_name):
     except Exception as e:
         return {"code": 1, "data": "", "messages": "search kubeconfig file failure" + str(e), "status": True}
 
-
-def delete_kubeconfig_file(filename):
+async def delete_kubeconfig_file(filename):
     """
-    1.
+    1.异步删除文件
+    :param filename:
     :return:
     """
-    file_full_file = conf_path + "/kubeconf/" + filename
-    if os.path.isfile(file_full_file):
-        os.remove(file_full_file)
-        return {"code": 0, "data": file_full_file, "messages": "delete kubeconfig file success", "status": True}
-    else:
-        return {"code": 1, "data": "", "messages": "file not found  delete kubeconfig failure", "status": True}
+    try:
+        file_full_file = conf_path + "/kubeconf/" + filename
+        if os.path.isfile(file_full_file):
+            os.remove(file_full_file)
+            return {"code": 0, "data": file_full_file, "messages": "delete kubeconfig file success", "status": True}
+        else:
+            return {"code": 1, "data": "", "messages": "file not found  delete kubeconfig failure", "status": False}
+    except OSError:
+        return {"code": 1, "data": "", "messages": "delete kubeconfig failure", "status": False}
 
 
 def get_kube_namespace(env, cluster):
@@ -122,5 +126,5 @@ if __name__ == "__main__":
     # add_kube_config("dev", "hdd-yunxiaobao-pre")
     # a = get_kube_config_content("dev","yunxiaobao-pre")
     # a = get_kube_config_dir_file()
-    a = delete_kubeconfig_file("test_hdd_k8s.conf")
-    print(a)
+    #a = delete_kubeconfig_file("test_hdd_k8s.conf")
+    print("a")

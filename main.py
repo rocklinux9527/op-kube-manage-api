@@ -23,13 +23,13 @@ from sqlalchemy.orm import sessionmaker, query, Session
 from sql_app.database import engine
 from sql_app.ops_log_db_play import query_operate_ops_log, insert_ops_bot_log
 from sql_app.kube_cnfig_db_play import insert_kube_config, updata_kube_config, delete_kube_config, query_kube_config, \
-    query_kube_db_env_cluster_all, query_kube_config_id,query_kube_db_env_cluster_wrapper
+    query_kube_db_env_cluster_all, query_kube_config_id, query_kube_db_env_cluster_wrapper
 from sql_app.kube_deploy_db_play import insert_kube_deployment, updata_kube_deployment, delete_kube_deployment, \
     query_kube_deployment, query_kube_deployment_by_name
 
 from sql_app.models import ServiceK8sData
 # db ops kube namespace
-from sql_app.kube_ns_db_play import insert_db_ns, delete_db_ns, query_ns
+from sql_app.kube_ns_db_play import insert_db_ns, delete_db_ns, query_ns, query_ns_any
 
 # db ops kube service
 from sql_app.kub_svc_db_play import insert_db_svc, delete_db_svc, query_kube_svc, query_kube_svc_by_name, updata_kube_svc, \
@@ -55,7 +55,7 @@ app = FastAPI(
 router = APIRouter()
 
 origins = [
-    "http://0.0.0.0:8888",
+    "http://0.0.0.0:8888", "http://192.168.1.5:9527"
 ]
 
 app.add_middleware(
@@ -81,7 +81,7 @@ class KubeConfig(BaseModel):
     server_address: str
     ca_data: str
     client_crt_data: str
-    client_data_key: str
+    client_key_data: str
 
 
 class updateKubeConfig(BaseModel):
@@ -130,7 +130,7 @@ async def create_kube_config(request: Request, request_data: KubeConfig):
     from sql_app.models import KubeK8sConfig
     data = request_data.dict()
     if not all(data.get(field) for field in
-               ['env', 'cluster_name', 'server_address', 'ca_data', 'client_crt_data', 'client_data_key']):
+               ['env', 'cluster_name', 'server_address', 'ca_data', 'client_crt_data', 'client_key_data']):
         return {'code': 1, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
@@ -174,8 +174,10 @@ async def update_kube_config(ReQuest: Request, request_data: updateKubeConfig):
 
 
 @app.delete("/v1/kube/config/", summary="Delete KubeConfig K8S Plan", tags=["ConfigKubernetes"])
-async def delete_kube_config_v1(request: Request, request_data: deleteKubeConfig):
+async def delete_kube_config_v1(ReQuest: Request, request_data: deleteKubeConfig):
+    import asyncio
     item_dict = request_data.dict()
+    userRequestData = await ReQuest.json()
     db_kube_config = query_kube_config_id(item_dict.get('id'))
     if not (db_kube_config.get("data")):
         raise HTTPException(status_code=404, detail="KubeConfig not found")
@@ -184,13 +186,17 @@ async def delete_kube_config_v1(request: Request, request_data: deleteKubeConfig
     if not env or not cluster_name:
         return {"code": 1, "messages": "Delete kube config failure, incorrect parameters", "status": True, "data": "failure"}
     file_name = f"{env}_{cluster_name}.conf"
-    result_data = delete_kubeconfig_file(file_name)
-    if result_data.get("code") != 0:
-        return {"code": 1, "messages": "Delete kube config failure 集群配置文件不存在", "status": True, "data": "failure"}
-    delete_instance = delete_kube_config(id)
-    user_request_data = await request.json()
-    insert_ops_bot_log("Delete kube config", json.dumps(user_request_data), "delete", json.dumps(delete_instance))
-    return delete_instance
+    try:
+        result_data = await asyncio.gather(delete_kubeconfig_file(file_name))
+        for result in result_data:
+            if result["code"] != 0:
+                return {"code": 1, "messages": "Delete kube config failure 集群配置文件不存在", "status": True, "data": "failure"}
+            delete_instance = delete_kube_config(item_dict.get('id'))
+            insert_ops_bot_log("Delete kube config", json.dumps(userRequestData), "delete", json.dumps(delete_instance))
+            return delete_instance
+    except Exception as e:
+        print(str(e))
+        return {"code": 1, "messages": str(e), "status": True, "data": "failure"}
 
 
 class createNameSpace(BaseModel):
@@ -219,7 +225,7 @@ def get_namespace_plan(env_name: Optional[str], cluster_name: Optional[str]):
 @app.get("/v1/db/k8s/ns/plan/", summary="Get namespace App Plan", tags=["NamespaceKubernetes"])
 def get_db_namespace_plan():
     db_result = query_ns()
-    return {"code": 0, "messages": "query success", "data": db_result, "status": True}
+    return db_result
 
 
 @app.post("/v1/db/k8s/ns/plan/", summary="Add namespace App Plan", tags=["NamespaceKubernetes"])
@@ -239,12 +245,13 @@ async def post_namespace_plan(request: Request, request_data: createNameSpace):
     cluster_info = query_kube_db_env_cluster_all(env_name, cluster_name)
     if not (cluster_info.get("data")):
         raise HTTPException(status_code=400, detail=f"环境:{env_name}  集群:{cluster_name}  不存在请提前配置集群和环境")
-    result_ns_name = session.query(DeployNsData).filter_by(ns_name=data.get("ns_name")).all()
-    if result_ns_name:
-        msg = f"Namespace_info namespace: {namespace_name} existing 提示: 已经存在,不允许覆盖操作!"
+    result_ns_name = query_ns_any(env_name, cluster_name, namespace_name)
+    if result_ns_name.get("data"):
+        msg = f" env {env_name} cluster_name {cluster_name} Namespace_info namespace: {namespace_name} existing 提示: 已经存在,不允许覆盖操作!"
         return {"code": 1, "data": msg, "message": "Namespace_info Record already exists", "status": True}
     else:
         for client_path in cluster_info.get("data"):
+
             if not (client_path.get("client_key_path")):
                 raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
             insert_ns_instance = K8sNamespaceManager(client_path.get("client_key_path"))
@@ -349,7 +356,7 @@ async def post_deploy_plan(request: Request, request_data: CreateDeployK8S) -> D
         insert_deploy_instance = k8sDeploymentManager(client_path.get("client_key_path"), data.get('namespace'))
         insert_result_data = insert_deploy_instance.create_kube_deployment(
             data.get('namespace'), data.get("app_name"), data.get("resources"), data.get("replicas"),
-            data.get("image"), deploy_env_dict, data.get("ports"), health_liven_ess_path,health_readiness_path)
+            data.get("image"), deploy_env_dict, data.get("ports"), health_liven_ess_path, health_readiness_path)
         if insert_result_data.get("code") != 0:
             raise HTTPException(status_code=400, detail=insert_result_data.get("message"))
         deploy_id = generate_deployment_id()
@@ -411,7 +418,8 @@ async def put_deploy_plan(request: Request, request_data: UpdateDeployK8S):
         data_result = update_deploy_instance.replace_kube_deployment(data.get('deployment_name'),
                                                                      data.get('replicas'), data.get("image"),
                                                                      data.get('namespace'), resources_name, deploy_env_dict,
-                                                                     container_port_name,health_liven_ess_path,health_readiness_path)
+                                                                     container_port_name, health_liven_ess_path,
+                                                                     health_readiness_path)
         if data_result.get("code") != 0:
             raise HTTPException(status_code=500, detail="Failed to update kubernetes deployment")
         update_id = generate_deployment_id()
@@ -809,28 +817,20 @@ def get_ingress_plan(env: Optional[str] = None, cluster_name: Optional[str] = No
 
 @app.get("/v1/k8s/sys/ns-by-ingress/", summary="Get sys Ingress App Plan", tags=["IngressKubernetesSys"])
 def get_ns_by_ingress_plan(env: Optional[str] = None, cluster_name: Optional[str] = None, namespace: Optional[str] = None):
-    result_cluster_info = query_kube_db_env_cluster_all(env, cluster_name)
-    for client_path in result_cluster_info.get("data"):
-        if not (client_path.get("client_key_path")):
-            raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
-        ns_k8s_instance = k8sIngressManager(client_path.get("client_key_path"), namespace)
-        ns_result = ns_k8s_instance.get_kube_ingress_by_name()
-        return ns_result
+    k8s_instance = k8sIngressManager(k8s_instance, namespace)
+    ns_result = k8s_instance.get_kube_ingress_by_name()
+    return ns_result
 
 
 @app.get("/v1/k8s/sys/ns-all-ingress/", summary="Get sys Ingress App Plan", tags=["IngressKubernetesSys"])
-def get_ns_all_ingress_plan(env: Optional[str] = None, cluster_name: Optional[str] = None):
-    result_cluster_info = query_kube_db_env_cluster_all(env, cluster_name)
-    for client_path in result_cluster_info.get("data"):
-        if not (client_path.get("client_key_path")):
-            raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
-        ns_k8s_instance = k8sIngressManager(client_path.get("client_key_path"), "dev")
-        ns_result = ns_k8s_instance.get_kube_ingress_all()
-        return ns_result
+@query_kube_db_env_cluster_wrapper()
+def get_ns_all_ingress_plan(k8s_instance: k8sIngressManager, env: Optional[str] = None, cluster_name: Optional[str] = None):
+    ns_k8s_instance = k8sIngressManager(k8s_instance, "dev")
+    ns_result = ns_k8s_instance.get_kube_ingress_all()
+    return ns_result
 
 
 @app.delete("/v1/k8s/ingress/plan/", summary="Delete Ingress App Plan", tags=["IngressKubernetes"])
-@query_kube_db_env_cluster_wrapper()
 async def delete_ingress_plan(request: Request, request_data: deleteIngressK8S):
     from kube.kube_ingress import k8sIngressManager
     data = request_data.dict()

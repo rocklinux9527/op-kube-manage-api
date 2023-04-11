@@ -90,6 +90,7 @@ def query_kube_svc(env, cluster_name, namespace, svc_name, selector_labels, svc_
     """
     1.跟进不同条件查询配置信息
     """
+    from tools.config import k8sServiceHeader
     session = SessionLocal()
     data = session.query(ServiceK8sData)
     try:
@@ -116,7 +117,7 @@ def query_kube_svc(env, cluster_name, namespace, svc_name, selector_labels, svc_
         print(e)
     session.commit()
     session.close()
-    return {"code": 0, "data": [i.to_dict for i in data], "messages": "query success", "status": True}
+    return {"code": 0, "total": len([i.to_dict for i in data]),"data": [i.to_dict for i in data], "messages": "query success", "status": True, "columns": k8sServiceHeader}
 
 def query_kube_svc_by_name(env_name, cluster_name, svc_name, namespace_name):
     session = SessionLocal()

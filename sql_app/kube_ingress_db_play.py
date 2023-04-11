@@ -114,6 +114,7 @@ def query_kube_ingres(env, cluster_name, namespace, ingress_name, host, svc_name
     """
     1.跟进不同条件查询配置信息
     """
+    from tools.config import k8sIngressHeader
     session = SessionLocal()
     data = session.query(IngressK8sData)
     try:
@@ -146,7 +147,7 @@ def query_kube_ingres(env, cluster_name, namespace, ingress_name, host, svc_name
         print(e)
     session.commit()
     session.close()
-    return {"code": 0, "data": [i.to_dict for i in data], "messages": "query success", "status": True}
+    return {"code": 0,"total": len([i.to_dict for i in data]), "data": [i.to_dict for i in data], "messages": "query success", "status": True, "columns": k8sIngressHeader}
 
 def query_kube_ingress_by_id(ID):
     """

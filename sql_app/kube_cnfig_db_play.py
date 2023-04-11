@@ -2,12 +2,13 @@ from sql_app.db_play import model_create, model_update, model_updateId, model_de
 from sql_app.models import KubeK8sConfig
 from sqlalchemy.orm import sessionmaker
 from sql_app.database import engine
-import requests
 from tools.config import queryClusterURL
 from functools import lru_cache
-
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import and_
-
+from fastapi import Depends, Query
+from typing import List, Optional, Set, Dict, Any
+from functools import wraps
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -105,6 +106,7 @@ def query_kube_config_id(id):
 
 
 def query_kube_config(env, cluster_name, server_address, client_key_path):
+    from tools.config import k8sClusterHeader
     """
     1.跟进不同条件查询配置信息
     """
@@ -127,7 +129,7 @@ def query_kube_config(env, cluster_name, server_address, client_key_path):
     except Exception as e:
         session.commit()
         session.close()
-    return {"code": 0, "data": [i.to_dict for i in data], "messages": "query success", "status": True}
+    return {"code": 0, "total": len([i.to_dict for i in data]), "data": [i.to_dict for i in data], "messages": "query success", "status": True, "columns": k8sClusterHeader}
 
 
 def query_kube_db_env_cluster_all(env, cluster_name):
@@ -150,8 +152,7 @@ def query_kube_db_env_cluster_all(env, cluster_name):
 
 def query_kube_db_env_cluster_wrapper():
     def decorator(func):
-        def wrapper(env, cluster_name):
-            print("环境信息来了",env,cluster_name)
+        def wrapped(env, cluster_name):
             """
             1.查询数据库环境和集群信息
             """
@@ -159,19 +160,50 @@ def query_kube_db_env_cluster_wrapper():
             data = session.query(KubeK8sConfig)
             try:
                 if env and cluster_name:
-                    results = data.filter(
-                        and_(KubeK8sConfig.env == env, KubeK8sConfig.cluster_name == cluster_name)).all()
-                    return {"code": 0, "data": [i.to_dict for i in results], "status": True}
+                    results = data.filter(and_(KubeK8sConfig.env == env, KubeK8sConfig.cluster_name == cluster_name)).all()
+                    if not (results):
+                        return {"code": 1, "data": "环境{env}或者{cluster}集群信息不存在,请检查配置信息".format(env=env, cluster=cluster_name), "status": False}
+                    results_format = {"code": 0, "data": [i.to_dict for i in results], "status": True}
+                    for client_path in results_format.get("data"):
+                        if not (client_path.get("client_key_path")):
+                           return {"code": 1, "data": "获取集群 client path  failure, 请集群配置是否存在,请检查配置问题", "status": False}
+                        k8s_instance = client_path.get("client_key_path")
+                        return func(k8s_instance)
                 else:
-                    return {"code": 1, "data": "", "status": False}
+                    return {"code": 1, "data": "缺少环境或者集群关键参数", "status": False}
             except Exception as e:
                 print(e)
                 session.commit()
                 session.close()
-
-        return wrapper
-
+        return wrapped
     return decorator
+
+# def query_kube_db_env_cluster_wrapper(func):
+#     async def wrapped(request: Request, *args, **kwargs):
+#         session = SessionLocal()
+#         try:
+#             data = session.query(KubeK8sConfig)
+#             env = kwargs.get("env")
+#             cluster_name = kwargs.get("cluster_name")
+#             results = data.filter(and_(KubeK8sConfig.env == env, KubeK8sConfig.cluster_name == cluster_name)).all()
+#             if not results:
+#                 return {"code": 1, "data": "环境{env}或者{cluster}集群信息不存在,请检查配置信息".format(env=env, cluster=cluster_name), "status": False}
+#             for client in results:
+#                 client_key_path = client.client_key_path
+#                 if not client_key_path:
+#                     return {"code": 1, "data": "获取集群 client path  failure, 请集群配置是否存在,请检查配置问题", "status": False}
+#                 k8s_instance = k8sIngressManager(client_key_path)
+#                 result = await func(request, *args, **kwargs)
+#                 session.commit()
+#                 session.close()
+#                 return result
+#             return {"code": 1, "data": "查询不到数据库信息", "status": False}
+#         except Exception as e:
+#             print(e)
+#             session.commit()
+#             session.close()
+#     return wrapped
+
 
 # def query_kube_env_cluster_all():
 #     """

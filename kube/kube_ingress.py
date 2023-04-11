@@ -5,8 +5,8 @@ from kube.kube_config import get_kube_namespace
 
 class k8sIngressManager():
     def __init__(self, client_config_file, namespace):
-        self.namespace = namespace
         self.client_config_file = client_config_file
+        self.namespace = namespace
         config.load_kube_config(config_file=self.client_config_file)
         networking_api = client.NetworkingV1Api()
 
@@ -271,4 +271,3 @@ if __name__ == "__main__":
     # ingres_instance = k8sIngressManager(client_config, "dev")
     # data = ingres_instance.delete_kube_ingress("dev", "ops-nginx-py-01")
     # data = svc_instance.delete_kube_svc("default","demo-test-nginx")
-    # print(data)

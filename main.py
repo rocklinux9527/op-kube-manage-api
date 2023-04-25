@@ -26,7 +26,7 @@ from sqlalchemy.orm import sessionmaker, query, Session
 from sql_app.database import engine
 from sql_app.ops_log_db_play import query_operate_ops_log, insert_ops_bot_log
 from sql_app.kube_cnfig_db_play import insert_kube_config, updata_kube_config, delete_kube_config, query_kube_config, \
-    query_kube_db_env_cluster_all, query_kube_config_id, query_kube_db_env_cluster_wrapper
+    query_kube_db_env_cluster_all, query_kube_config_id, query_kube_db_env_all,query_kube_db_cluster_all, query_kube_db_env_cluster_wrapper
 from sql_app.kube_deploy_db_play import insert_kube_deployment, updata_kube_deployment, delete_kube_deployment, \
     query_kube_deployment, query_kube_deployment_by_name
 
@@ -105,6 +105,16 @@ def get_kube_config(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0,
                     cluster_name: Optional[str] = None, server_address: Optional[str] = None,
                     client_key_path: Optional[str] = None):
     result_data = query_kube_config(page, page_size, env, cluster_name, server_address, client_key_path)
+    return result_data
+
+@app.get("/v1/kube/env/list/", summary="get KubeConfig k8s EnvList Plan", tags=["ConfigKubernetes"])
+def get_kube_envList():
+    result_data = query_kube_db_env_all()
+    return result_data
+
+@app.get("/v1/kube/cluster/List/", summary="get KubeConfig k8s EnvList Plan", tags=["ConfigKubernetes"])
+def get_kube_clusterList():
+    result_data = query_kube_db_cluster_all()
     return result_data
 
 

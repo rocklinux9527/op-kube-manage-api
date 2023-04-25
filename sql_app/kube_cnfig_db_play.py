@@ -6,7 +6,7 @@ from sqlalchemy import and_
 from typing import Optional
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 from fastapi.encoders import jsonable_encoder
-
+from sqlalchemy.orm import Session
 from tools.config import setup_logging
 import os
 HERE = os.path.abspath(__file__)
@@ -147,6 +147,25 @@ def query_kube_db_env_cluster_all(env, cluster_name):
         session.commit()
         session.close()
 
+def query_kube_db_env_all():
+    try:
+        session = SessionLocal()
+        query = session.query(KubeK8sConfig.env).distinct().all()
+        envList = [row[0] for row in query]
+        return {"code": 0, "total": len(envList), "data": envList, "messages": "query data success", "status": True}
+    except Exception as e:
+        setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
+        return {"code": 1, "total": 0, "data": [], "messages": f"Error occured: {str(e)}", "status": False}
+
+def query_kube_db_cluster_all():
+    try:
+        session = SessionLocal()
+        query = session.query(KubeK8sConfig.cluster_name).distinct().all()
+        clusterList = [row[0] for row in query]
+        return {"code": 0, "total": len(clusterList), "data": clusterList, "messages": "query data success", "status": True}
+    except Exception as e:
+        setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
+        return {"code": 1, "total": 0, "data": [], "messages": f"Error occured: {str(e)}", "status": False}
 
 def query_kube_db_env_cluster_wrapper():
     def decorator(func):

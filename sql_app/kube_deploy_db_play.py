@@ -157,6 +157,7 @@ def delete_kube_deployment(Id):
     return model_delete(DeployK8sData, Id)
 
 def query_kube_deployment(page, page_size, env, cluster, app_name, image, ports, image_pull_secrets, deploy_id):
+    from tools.config import k8sDeployHeader
     """
     1.使用条件列表替换原本的if语句，将重复的代码合并。这样可以减少代码量，提高可读性，方便后期维护。
     2.对于查询条件返回的结果，可以使用类型检查来判断是否是一个列表。如果是列表，就进行分页操作并返回结果。
@@ -181,16 +182,16 @@ def query_kube_deployment(page, page_size, env, cluster, app_name, image, ports,
                 if isinstance(condition[1], list):
                     result_data = condition[1][(page - 1) * page_size:page * page_size]
                     return {"code": 0, "total": len(condition[1]), "data": jsonable_encoder(result_data),
-                            "messages": "query data success", "status": True}
+                            "messages": "query data success", "status": True, "columns": k8sDeployHeader}
                 else:
                     return {"code": 0, "data": condition[1]}
         result_data = data.limit(page_size).offset((page - 1) * page_size).all()
         return {"code": 0, "total": len(data.all()), "data": jsonable_encoder(result_data),
-                "messages": "query data success", "status": True}
+                "messages": "query data success", "status": True, "columns": k8sDeployHeader}
     except Exception as e:
         session.rollback()
         setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
-        return {"code": 1, "total": 0, "data": "query data failure ", "messages": str(e), "status": True}
+        return {"code": 1, "total": 0, "data": "query data failure ", "messages": str(e), "status": False,"columns": k8sDeployHeader}
     finally:
         session.close()
 

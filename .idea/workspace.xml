@@ -6,14 +6,6 @@
   <component name="ChangeListManager">
     <list default="true" id="f41d409f-edf2-4191-aa1d-d0422cf3a462" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/conf/kubeconf/test_c1.conf" beforeDir="false" afterPath="$PROJECT_DIR$/conf/kubeconf/test_c1.conf" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql_app/kub_svc_db_play.py" beforeDir="false" afterPath="$PROJECT_DIR$/sql_app/kub_svc_db_play.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql_app/kube_cnfig_db_play.py" beforeDir="false" afterPath="$PROJECT_DIR$/sql_app/kube_cnfig_db_play.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql_app/kube_deploy_db_play.py" beforeDir="false" afterPath="$PROJECT_DIR$/sql_app/kube_deploy_db_play.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql_app/kube_ingress_db_play.py" beforeDir="false" afterPath="$PROJECT_DIR$/sql_app/kube_ingress_db_play.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql_app/kube_ns_db_play.py" beforeDir="false" afterPath="$PROJECT_DIR$/sql_app/kube_ns_db_play.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tools/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/tools/config.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -108,7 +100,19 @@
       <map>
         <entry key="MAIN">
           <value>
-            <State />
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="master" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+            </State>
           </value>
         </entry>
       </map>

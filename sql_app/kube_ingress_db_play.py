@@ -5,7 +5,12 @@ from sql_app.database import engine
 from sqlalchemy import and_
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-
+from tools.config import setup_logging
+from fastapi.encoders import jsonable_encoder
+import os
+HERE = os.path.abspath(__file__)
+HOME_DIR = os.path.split(os.path.split(HERE)[0])[0]
+LOG_DIR = os.path.join(HOME_DIR, "logs")
 def insert_db_ingress(env, cluster_name, namespace, ingress_name, host, svc_name, path,
                       path_type, ingress_class_name, tls, tls_secret,
                       svc_port, used):
@@ -110,44 +115,38 @@ def delete_db_ingress(Id):
     return model_delete(IngressK8sData, Id)
 
 
-def query_kube_ingres(env, cluster_name, namespace, ingress_name, host, svc_name, svc_port, tls, tls_secret):
-    """
-    1.跟进不同条件查询配置信息
-    """
-    from tools.config import k8sIngressHeader
+def query_kube_ingres(page, page_size, env, cluster_name, namespace, ingress_name, host, svc_name, svc_port, tls, tls_secret):
     session = SessionLocal()
     data = session.query(IngressK8sData)
+    conditions = [
+        (env, data.filter_by(env=env).first()),
+        (cluster_name, data.filter_by(cluster_name=cluster_name).all()),
+        (namespace, data.filter_by(namespace=namespace).all()),
+        (ingress_name, data.filter_by(ingress_name=ingress_name).first()),
+        (host, data.filter_by(host=host).first()),
+        (svc_name, data.filter_by(svc_name=svc_name).first()),
+        (svc_port, data.filter_by(svc_port=svc_port).all()),
+        (tls, data.filter_by(tls=tls).first()),
+        (tls_secret, data.filter_by(tls_secret=tls_secret).first())
+    ]
     try:
-        if env:
-            return {"code": 0, "data": data.filter_by(env=env).first()}
-        if cluster_name:
-            return {"code": 0, "data": data.filter_by(cluster_name=cluster_name).first()}
-        if namespace:
-            return {"code": 0, "data": data.filter_by(namespace=namespace).first()}
-
-        if ingress_name:
-            return {"code": 0, "data": data.filter_by(ingress_name=ingress_name).first()}
-
-        if host:
-            return {"code": 0, "data": data.filter_by(host=host).first()}
-
-        if svc_name:
-            return {"code": 0, "data": data.filter_by(svc_name=svc_name).first()}
-        if svc_port:
-            return {"code": 0, "data": data.filter_by(svc_port=svc_port).first()}
-        if ingress_name:
-            return {"code": 0, "data": data.filter_by(ingress_class_name=ingress_name).first()}
-
-        if tls:
-            return {"code": 0, "data": data.filter_by(tls=tls).first()}
-        if tls_secret:
-            return {"code": 0, "data": data.filter_by(tls_secret=tls_secret).first()}
-
+        for condition in conditions:
+            if condition[0]:
+                if isinstance(condition[1], list):
+                    result_data = condition[1][(page - 1) * page_size:page * page_size]
+                    return {"code": 0, "total": len(condition[1]), "data": jsonable_encoder(result_data),
+                            "messages": "query data success", "status": True}
+                else:
+                    return {"code": 0, "data": condition[1]}
+        result_data = data.limit(page_size).offset((page - 1) * page_size).all()
+        return {"code": 0, "total": len(data.all()), "data": jsonable_encoder(result_data),
+                "messages": "query data success", "status": True}
     except Exception as e:
-        print(e)
-    session.commit()
-    session.close()
-    return {"code": 0,"total": len([i.to_dict for i in data]), "data": [i.to_dict for i in data], "messages": "query success", "status": True, "columns": k8sIngressHeader}
+        session.rollback()
+        setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
+        return {"code": 1, "total": 0, "data": "query data failure ", "messages": str(e), "status": True}
+    finally:
+        session.close()
 
 def query_kube_ingress_by_id(ID):
     """

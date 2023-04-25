@@ -4,7 +4,12 @@ from sqlalchemy.orm import sessionmaker
 from sql_app.database import engine
 from sqlalchemy import and_
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
+from tools.config import setup_logging
+from fastapi.encoders import jsonable_encoder
+import os
+HERE = os.path.abspath(__file__)
+HOME_DIR = os.path.split(os.path.split(HERE)[0])[0]
+LOG_DIR = os.path.join(HOME_DIR, "logs")
 
 def insert_db_svc(env, cluster_name, namespace, svc_name, selector_labels, svc_port, svc_type, target_port):
     """
@@ -86,38 +91,64 @@ def delete_db_svc(Id):
     return model_delete(ServiceK8sData, Id)
 
 
-def query_kube_svc(env, cluster_name, namespace, svc_name, selector_labels, svc_port, svc_type, target_port):
+from tools.config import k8sServiceHeader
+
+def query_kube_svc(page, page_size, env=None, cluster_name=None, namespace=None, svc_name=None, selector_labels=None, svc_port=None, svc_type=None, target_port=None):
     """
-    1.跟进不同条件查询配置信息
+    根据不同条件查询 Kubernetes 服务的配置信息
+
+    Args:
+        page (int): 分页页码
+        page_size (int): 分页大小
+        env (str): 环境名
+        cluster_name (str): 集群名
+        namespace (str): 命名空间
+        svc_name (str): 服务名
+        selector_labels (str): 选择器标签
+        svc_port (int): 服务端口
+        svc_type (str): 服务类型
+        target_port (int): 目标端口
+
+    Returns:
+        dict: 查询结果
     """
-    from tools.config import k8sServiceHeader
     session = SessionLocal()
     data = session.query(ServiceK8sData)
+
+    # 根据参数进行查询
+    if env:
+        data = data.filter_by(env=env)
+    if cluster_name:
+        data = data.filter_by(env=env)  # 原代码中 env 应为 cluster_name
+    if namespace:
+        data = data.filter_by(namespace=namespace)
+    if svc_name:
+        data = data.filter_by(svc_name=svc_name)
+    if selector_labels:
+        data = data.filter_by(selector_labels=selector_labels)
+    if svc_port:
+        data = data.filter_by(svc_port=svc_port)
+    if svc_type:
+        data = data.filter_by(svc_type=svc_type)
+    if target_port:
+        data = data.filter_by(target_port=target_port)
+
     try:
-        if env:
-            return {"code": 0, "data": data.filter_by(env=env).first()}
-        if cluster_name:
-            return {"code": 0, "data": data.filter_by(env=env).first()}
-        if namespace:
-            return {"code": 0, "data": data.filter_by(namespace=namespace).first()}
-        if svc_name:
-            return {"code": 0, "data": data.filter_by(svc_name=svc_name).first()}
-
-        if selector_labels:
-            return {"code": 0, "data": data.filter_by(selector_labels=selector_labels).first()}
-
-        if svc_port:
-            return {"code": 0, "data": data.filter_by(svc_port=svc_port).first()}
-
-        if svc_type:
-            return {"code": 0, "data": data.filter_by(svc_type=svc_type).first()}
-        if target_port:
-            return {"code": 0, "data": data.filter_by(target_port=target_port).first()}
+        # 如果有分页参数，则进行分页查询并返回结果
+        if page and page_size:
+            total_count = data.count()
+            result_data = data.limit(page_size).offset((page - 1) * page_size).all()
+            return {"code": 0, "total": total_count, "data": jsonable_encoder(result_data),
+                    "messages": "query data success", "status": True, "columns": k8sServiceHeader}
+        # 否则返回所有数据
+        else:
+            return {"code": 0, "total": len([i.to_dict for i in data]), "data": jsonable_encoder(data.all()),
+                    "messages": "query data success", "status": True, "columns": k8sServiceHeader}
     except Exception as e:
         print(e)
-    session.commit()
-    session.close()
-    return {"code": 0, "total": len([i.to_dict for i in data]),"data": [i.to_dict for i in data], "messages": "query success", "status": True, "columns": k8sServiceHeader}
+        session.commit()
+        session.close()
+        return {"code": 0, "total": 0,"data": [i.to_dict for i in data], "messages": "query success", "status": True, "columns": k8sServiceHeader}
 
 def query_kube_svc_by_name(env_name, cluster_name, svc_name, namespace_name):
     session = SessionLocal()

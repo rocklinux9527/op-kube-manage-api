@@ -5,8 +5,14 @@ from sql_app.database import engine
 from sqlalchemy import and_
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+from fastapi.encoders import jsonable_encoder
 
-
+# 日志配置
+from tools.config import setup_logging
+import os
+HERE = os.path.abspath(__file__)
+HOME_DIR = os.path.split(os.path.split(HERE)[0])[0]
+LOG_DIR = os.path.join(HOME_DIR, "logs")
 def insert_db_ns(env, cluster_name, ns_name, used):
     """
     1.新增入库参数
@@ -39,17 +45,24 @@ def delete_db_ns(Id):
     return model_delete(DeployNsData, Id)
 
 
-def query_ns():
+def query_ns(page: int = 1, page_size: int = 10):
     from tools.config import k8sNameSpaceHeader
     """
     1.查询查询配置信息
     """
     session = SessionLocal()
-    data = session.query(DeployNsData)
-    session.commit()
-    session.close()
-    return {"code": 0, "total": len([i.to_dict for i in data]), "data": [i.to_dict for i in data], "messages": "query success", "status": True,
-            "columns": k8sNameSpaceHeader}
+    query = session.query(DeployNsData)
+    try:
+        data = query.limit(page_size).offset((page - 1) * page_size).all()
+        total = query.count()
+        session.commit()
+        session.close()
+        return {"code": 0, "total": total, "data": jsonable_encoder(data), "messages": "query success", "status": True,
+                "columns": k8sNameSpaceHeader}
+    except Exception as e:
+        setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
+        return {"code": 0, "total": 0, "data": "query data failure", "messages": str(e), "status": True,
+                "columns": k8sNameSpaceHeader}
 
 
 def query_ns_any(env_name, cluster_name, namespace_name):

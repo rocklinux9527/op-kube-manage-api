@@ -2,14 +2,16 @@ from sql_app.db_play import model_create, model_update, model_updateId, model_de
 from sql_app.models import KubeK8sConfig
 from sqlalchemy.orm import sessionmaker
 from sql_app.database import engine
-from tools.config import queryClusterURL
-from functools import lru_cache
-from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import and_
-from fastapi import Depends, Query
-from typing import List, Optional, Set, Dict, Any
-from functools import wraps
+from typing import Optional
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+from fastapi.encoders import jsonable_encoder
+
+from tools.config import setup_logging
+import os
+HERE = os.path.abspath(__file__)
+HOME_DIR = os.path.split(os.path.split(HERE)[0])[0]
+LOG_DIR = os.path.join(HOME_DIR, "logs")
 
 
 def insert_kube_config(env, cluster_name, server_address, ca_data, client_crt_data, client_key_data, client_key_path):
@@ -105,32 +107,28 @@ def query_kube_config_id(id):
         return {"code": 1, "data": str(e), "messages": "query failed ", "status": False}
 
 
-def query_kube_config(env, cluster_name, server_address, client_key_path):
+def query_kube_config(page: int = 1, page_size: int = 10, env: Optional[str] = None, cluster_name: Optional[str] = None, server_address: Optional[str] = None, client_key_path: Optional[str] = None):
+    """
+    1.根据不同条件查询配置信息
+    """
     from tools.config import k8sClusterHeader
-    """
-    1.跟进不同条件查询配置信息
-    """
     session = SessionLocal()
-    data = session.query(KubeK8sConfig)
+    query = session.query(KubeK8sConfig)
     try:
-        if env and cluster_name:
-            results = data.filter(and_(KubeK8sConfig.env == env, KubeK8sConfig.cluster_name == cluster_name)).all()
-            return {"code": 0, "data": results}
         if env:
-            return {"code": 0, "data": data.filter_by(env=env).all()}
+            query = query.filter(KubeK8sConfig.env == env)
         if cluster_name:
-            return {"code": 0, "data": data.filter_by(cluster_name=cluster_name).all()}
-
+            query = query.filter(KubeK8sConfig.cluster_name == cluster_name)
         if server_address:
-            return {"code": 0, "data": data.filter_by(server_address=server_address).first()}
-
+            query = query.filter(KubeK8sConfig.server_address == server_address)
         if client_key_path:
-            return {"code": 0, "data": data.filter_by(client_key_path=client_key_path).first()}
+            query = query.filter(KubeK8sConfig.client_key_path == client_key_path)
+        data = query.limit(page_size).offset((page-1)*page_size).all()
+        total = query.count()
+        return {"code": 0, "total": total, "data": jsonable_encoder(data), "messages": "query data success", "status": True, "columns": k8sClusterHeader}
     except Exception as e:
-        session.commit()
-        session.close()
-    return {"code": 0, "total": len([i.to_dict for i in data]), "data": [i.to_dict for i in data], "messages": "query success", "status": True, "columns": k8sClusterHeader}
-
+        setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
+        return {"code": 1, "total": 0, "data": "query data failure ", "messages": str(e), "status": True, "columns": k8sClusterHeader}
 
 def query_kube_db_env_cluster_all(env, cluster_name):
     """
@@ -178,103 +176,3 @@ def query_kube_db_env_cluster_wrapper():
         return wrapped
     return decorator
 
-# def query_kube_db_env_cluster_wrapper(func):
-#     async def wrapped(request: Request, *args, **kwargs):
-#         session = SessionLocal()
-#         try:
-#             data = session.query(KubeK8sConfig)
-#             env = kwargs.get("env")
-#             cluster_name = kwargs.get("cluster_name")
-#             results = data.filter(and_(KubeK8sConfig.env == env, KubeK8sConfig.cluster_name == cluster_name)).all()
-#             if not results:
-#                 return {"code": 1, "data": "环境{env}或者{cluster}集群信息不存在,请检查配置信息".format(env=env, cluster=cluster_name), "status": False}
-#             for client in results:
-#                 client_key_path = client.client_key_path
-#                 if not client_key_path:
-#                     return {"code": 1, "data": "获取集群 client path  failure, 请集群配置是否存在,请检查配置问题", "status": False}
-#                 k8s_instance = k8sIngressManager(client_key_path)
-#                 result = await func(request, *args, **kwargs)
-#                 session.commit()
-#                 session.close()
-#                 return result
-#             return {"code": 1, "data": "查询不到数据库信息", "status": False}
-#         except Exception as e:
-#             print(e)
-#             session.commit()
-#             session.close()
-#     return wrapped
-
-
-# def query_kube_env_cluster_all():
-#     """
-#     1.查询集群配置接口
-#     2.处理返回后数据重组数据结构.
-#     3.处理后数据结构示例如下:
-#     {'env': ['dev'], 'cluster': [{'dev': 'c1'}, {'dev': 'c2'}]}
-#     """
-#     sp = requests.get(queryClusterURL)
-#     try:
-#         data = dict()
-#         envs = list(set([i.get("env") for i in sp.json().get("data")]))
-#         data["env"] = envs
-#         clusterList = []
-#         for i in sp.json().get("data"):
-#             clusterList.append({i.get("env"): i.get("cluster_name")})
-#         data["cluster"] = clusterList
-#         return data
-#     except Exception as e:
-#         return str(e), False
-#     finally:
-#         sp.close()
-#
-#
-# def query_cluster_client_path_v1(env, cluster_name):
-#     """
-#     原始版本
-#     1.根据env环境和集群精确查询环境client_key_path
-#     """
-#     import requests
-#     from tools.config import queryClusterURL
-#     if not (env and cluster_name):
-#         return {"code": 1, "status": False, "data": "", "messages": "cluster_name and Env Not Null"}
-#     payload = {'env=': env, 'cluster_name': cluster_name}
-#     try:
-#         sp = requests.get(queryClusterURL, params=payload, timeout=3)
-#         data = sp.json().get("data")
-#         if data:
-#             for client_path in data:
-#                 client_key_path = client_path.get("client_key_path")
-#                 return {"code": 1, "status": False, "data": client_key_path, "messages": "Cluster Client Path Success"}
-#         else:
-#             return {"code": 1, "status": False, "data": "", "messages": "cluster config not found"}
-#
-#     except Exception as e:
-#         return str(e), False
-#
-#
-# @lru_cache(maxsize=None)
-# def query_cluster_client_path_v2(env, cluster_name):
-#     """
-#     优化版本
-#     1.减少网络请求的次数，可以使用缓存来提高效率。
-#     2.减少循环的次数，可以直接使用列表推导式或者生成器来代替for循环。
-#     3.减少异常捕获的次数，尽可能避免使用`try...except`语句，在代码中添加判断语句来规避异常情况。
-#     4.减少不必要的代码，例如 `if not (env and cluster_name)` 可以写成 `if not env or not cluster_name`，代码更加简洁。
-#     5.这个函数使用了Python的`lru_cache`装饰器，可以在函数运行时缓存结果，以减少网络请求的次数。
-#     同时，使用列表推导式和`next`函数来避免循环过程，减少循环的次数。
-#     优化后，代码更加简洁清晰，而且运行效率也会更高.
-#     """
-#     if not env or not cluster_name:
-#         return {"code": 1, "status": False, "data": "", "messages": "cluster_name and Env Not Null"}
-#     payload = {'env': env, 'cluster_name': cluster_name}
-#     try:
-#         sp = requests.get(queryClusterURL, params=payload, timeout=3)
-#         data = sp.json().get("data")
-#         if data:
-#             client_key_path = next((client_path.get("client_key_path") for client_path in data), "")
-#             print(client_key_path)
-#             return {"code": 0, "status": False, "data": client_key_path, "messages": "Cluster Client Path Success"}
-#         else:
-#             return {"code": 1, "status": False, "data": "", "messages": "cluster config not found"}
-#     except Exception as e:
-#         return str(e), False

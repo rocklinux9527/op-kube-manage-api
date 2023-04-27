@@ -1,6 +1,6 @@
 FROM python:3.7.0 As builder
 COPY requirements.txt .
-RUN  pip3 install --upgrade pip && pip3 install  -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
+RUN  pip3 install --upgrade pip && pip3 install   -r requirements.txt
 FROM python:3.7.0-alpine3.7
 COPY --from=builder /usr/local/lib/python3.7/site-packages /usr/local/lib/python3.7/site-packages
 #Set System TimeZone

@@ -1,0 +1,34 @@
+services:
+  ops-kube_manage-mysql:
+    image: mysql:5.7
+    container_name: op-kube_manage-mysql-5.7
+    restart: always
+    ports:
+      - "3306:3306"
+    volumes:
+      - "./mysql/my.cnf:/etc/mysql/my.cnf"
+      - "./mysql/datadir:/var/lib/mysql"
+    environment:
+      MYSQL_DATABASE: op_kube_manage_api
+      MYSQL_ROOT_PASSWORD: 123456
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-uroot", "-p123456"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  ops-dns-web:
+    image: breaklinux/op-kube-manage-api:v1
+    container_name: op-kube-manage-api
+    restart: always
+    ports:
+      - "80:8888"
+    links:
+      - ops-kube_manage-mysql
+    depends_on:
+      - ops-kube_manage-mysql
+    healthcheck:
+      test: [ "CMD", "dig", "+short", "ops-kube_manage-mysql" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3

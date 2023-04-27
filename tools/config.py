@@ -16,6 +16,8 @@ nacos_config = {"nacos_server_address": "http://localhost:8848",
 queryClusterURL = "http://0.0.0.0:8888/v1/kube/config"
 
 # K8S集群配置前端显示表头
+
+
 k8sClusterHeader = [
     {"name": "env", "alias": "环境"},
     {"name": "cluster_name", "alias": "集群标识"},
@@ -25,6 +27,8 @@ k8sClusterHeader = [
     {"name": "client_key_data", "alias": "客户端密钥"},
     {"name": "client_key_path", "alias": "证书路径"}
 ]
+
+
 # K8S 命名空间 前端显示表头
 k8sNameSpaceHeader = [
     {"name": "env", "alias": "环境"},

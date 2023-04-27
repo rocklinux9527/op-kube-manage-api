@@ -878,4 +878,4 @@ async def delete_ingress_plan(request: Request, request_data: deleteIngressK8S):
 
 if __name__ == "__main__":
     setup_logging(log_file_path="fastapi.log", project_root="./logs", message="startup fastapi")
-    uvicorn.run(app, host="0.0.0.0", port=8888, log_level="debug")
+    uvicorn.run(app, host="127.0.0.1", port=8888, log_level="debug")

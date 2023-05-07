@@ -54,7 +54,7 @@ k8sDeployHeader = [
 k8sServiceHeader = [
     {"name": "svc_name", "alias": "服务名称"},
     {"name": "env", "alias": "环境"},
-    {"name": "cluster", "alias": "集群"},
+    {"name": "cluster_name", "alias": "集群"},
     {"name": "namespace", "alias": "命名空间"},
     {"name": "selector_labels", "alias": "关联labels"},
     {"name": "svc_port", "alias": "服务port"},

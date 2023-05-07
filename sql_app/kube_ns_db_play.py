@@ -55,15 +55,15 @@ def query_ns(page: int = 1, page_size: int = 10):
     try:
         data = query.limit(page_size).offset((page - 1) * page_size).all()
         total = query.count()
-        session.commit()
-        session.close()
         return {"code": 0, "total": total, "data": jsonable_encoder(data), "messages": "query success", "status": True,
                 "columns": k8sNameSpaceHeader}
     except Exception as e:
         setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
         return {"code": 0, "total": 0, "data": "query data failure", "messages": str(e), "status": True,
                 "columns": k8sNameSpaceHeader}
-
+    finally:
+        session.commit()
+        session.close()
 
 def query_ns_any(env_name, cluster_name, namespace_name):
     from tools.config import k8sNameSpaceHeader
@@ -72,11 +72,34 @@ def query_ns_any(env_name, cluster_name, namespace_name):
     """
     session = SessionLocal()
     data = session.query(DeployNsData)
-    results = data.filter(and_(DeployNsData.env == env_name, DeployNsData.cluster_name == cluster_name,
-                               DeployNsData.ns_name == namespace_name)).all()
-    if not env_name and cluster_name and results:
+    try:
+        results = data.filter(and_(DeployNsData.env == env_name, DeployNsData.cluster_name == cluster_name,
+                                   DeployNsData.ns_name == namespace_name)).all()
+        if not env_name and cluster_name and results:
+            return {"code": 1, "data": "", "status": False}
+        else:
+            return {"code": 0, "data": [i.to_dict for i in results], "status": True, "columns": k8sNameSpaceHeader}
+    except Exception as e:
+        setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
+        return {"code": 0, "total": 0, "data": "query ns any data failure", "messages": str(e), "status": True,
+                "columns": k8sNameSpaceHeader}
+    finally:
+        session.commit()
         session.close()
-        return {"code": 1, "data": "", "status": False}
-    else:
+
+def query_kube_db_ns_all():
+    """
+    1.查询ns列表
+    Returns:
+    """
+    try:
+        session = SessionLocal()
+        query = session.query(DeployNsData.ns_name).distinct().all()
+        namespaceList = [row[0] for row in query]
+        return {"code": 0, "total": len(namespaceList), "data": namespaceList, "messages": "query data ns success", "status": True}
+    except Exception as e:
+        setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
+        return {"code": 1, "total": 0, "data": [], "messages": f"Error occured: {str(e)}", "status": False}
+    finally:
+        session.commit()
         session.close()
-        return {"code": 0, "data": [i.to_dict for i in results], "status": True, "columns": k8sNameSpaceHeader}

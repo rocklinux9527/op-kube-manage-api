@@ -171,3 +171,57 @@ def query_kube_svc_by_id(ID):
         return {"code": 1, "data": "", "status": False}
     else:
         return {"code": 0, "data": results, "status": True}
+
+def query_kube_all_svc_name(env_name:str, cluster_name:str, namespace_name:str) -> dict:
+    """
+    查询环境env和集群和命名空间
+    Args:
+        env_name: str, 环境名称
+        cluster_name: str, 集群名称
+        namespace_name: str, 命名空间名称
+
+    Returns:
+        dict, {"code": 0/1, "data": list/str, "status": True/False}
+    # 使用distinct去重，并仅查询svc_name列
+    # 通过上下文管理器使用SessionLocal
+    # 使用列表推导式取出结果中的svc_name
+     # 检查所有参数是否存在并且查询结果不为空
+    """
+    with SessionLocal() as session:
+        results = session.query(ServiceK8sData.svc_name).filter_by(
+            env=env_name,
+            cluster_name=cluster_name,
+            namespace=namespace_name
+        ).distinct().all()
+        svc_list = [result[0] for result in results]
+
+    if env_name and cluster_name and svc_list:
+        return {"code": 0, "data": svc_list, "status": True, "messages": "query svc-name all success"}
+    else:
+        return {"code": 1, "data": "", "status": False,  "messages": "query svc-name all failed"}
+
+
+def query_kube_all_svc_port(env_name:str, cluster_name:str, namespace_name:str, svc_name:str ) -> dict:
+    """
+    查询环境env和集群和命名空间
+    Args:
+        env_name: str, 环境名称
+        cluster_name: str, 集群名称
+        namespace_name: str, 命名空间名称
+
+    Returns:
+        dict, {"code": 0/1, "data": list/str, "status": True/False}
+    """
+    with SessionLocal() as session:
+        results = session.query(ServiceK8sData.svc_port).filter_by(
+            env=env_name,
+            cluster_name=cluster_name,
+            namespace=namespace_name,
+            svc_name=svc_name
+        ).distinct().all()
+        port_list = [result[0] for result in results]
+
+    if env_name and cluster_name and port_list:
+        return {"code": 0, "data": port_list, "status": True, "messages": "query svc-port all success"}
+    else:
+        return {"code": 1, "data": "", "status": False,  "messages": "query svc-port all failed"}

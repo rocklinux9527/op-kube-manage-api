@@ -5,7 +5,7 @@ from sql_app.database import engine
 from sqlalchemy import and_
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-from tools.config import setup_logging
+from tools.config import setup_logging,k8sIngressHeader
 from fastapi.encoders import jsonable_encoder
 import os
 HERE = os.path.abspath(__file__)
@@ -135,12 +135,12 @@ def query_kube_ingres(page, page_size, env, cluster_name, namespace, ingress_nam
                 if isinstance(condition[1], list):
                     result_data = condition[1][(page - 1) * page_size:page * page_size]
                     return {"code": 0, "total": len(condition[1]), "data": jsonable_encoder(result_data),
-                            "messages": "query data success", "status": True}
+                            "messages": "query data success", "status": True, "columns": k8sIngressHeader}
                 else:
                     return {"code": 0, "data": condition[1]}
         result_data = data.limit(page_size).offset((page - 1) * page_size).all()
         return {"code": 0, "total": len(data.all()), "data": jsonable_encoder(result_data),
-                "messages": "query data success", "status": True}
+                "messages": "query data success", "status": True,"columns": k8sIngressHeader}
     except Exception as e:
         session.rollback()
         setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
@@ -168,3 +168,4 @@ def query_kube_ingress_by_name(env_name, cluster_name, ingress_name, namespace_n
         return {"code": 0, "data": [i.to_dict for i in results], "status": True}
     else:
         return {"code": 1, "data": "", "status": False}
+

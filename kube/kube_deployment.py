@@ -52,7 +52,7 @@ class k8sDeploymentManager:
                 "status": False
             }
 
-    def create_kube_deployment(self, ns, deployment_name, resources, replicas, image, deploy_env, container_port, health_liven_ess=None, health_readiness=None):
+    def create_kube_deployment(self, namespace, deployment_name, resources, replicas, image, deploy_env, container_port, health_liven_ess=None, health_readiness=None):
         """
         1.命名空间和body内容
         :param ns: str 命名空间名称
@@ -160,7 +160,7 @@ class k8sDeploymentManager:
             elif status == 409:
                 msg = "Create Deployment failure: App Deployment exist"
             elif status == 404:
-                msg = f"Create Deployment failure: Namespace {ns} not found"
+                msg = f"Create Deployment failure: Namespace {namespace} not found"
             else:
                 msg = "Create Deployment failure"
             return {"code": 1, "messages": msg, "data": "", "status": False}
@@ -263,7 +263,7 @@ class k8sDeploymentManager:
                         restart_policy="Always",
                         containers=[container]))
                 spec = client.V1DeploymentSpec(
-                    replicas=1,
+                    replicas=replicas,
                     selector=client.V1LabelSelector(
                         match_labels={"app": deployment_name}),
                     template=template)
@@ -289,7 +289,7 @@ class k8sDeploymentManager:
             elif status == 409:
                 msg = "Update Deployment failure: App Update exist"
             elif status == 404:
-                msg = f"Update Deployment failure: Namespace {ns} not found"
+                msg = f"Update Deployment failure: Namespace {namespace} not found"
             else:
                 msg = "Update Deployment failure"
             return {"code": 1, "messages": msg, "data": "", "status": False}

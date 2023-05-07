@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Kubernetes WebShell</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.bootcdn.net/ajax/libs/tailwindcss/2.2.6/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.2.6/vue.global.min.js"></script>
+</head>
+<body>
+<div id="app" class="bg-gray-100 min-h-screen">
+    <div class="flex justify-center items-center h-full">
+        <div class="w-1/2 bg-white shadow-lg rounded-lg overflow-hidden">
+            <!-- application header -->
+            <div class="bg-gray-100 border-b border-gray-200 p-4">
+                <h3 class="text-lg font-bold">Kubernetes WebShell</h3>
+            </div>
+            <!-- application body -->
+            <div class="px-4 py-4" v-if="currentView === 'list'">
+                <div class="flex justify-between px-4 py-4">
+                    <input type="text" class="py-2 border border-gray-200 rounded-lg w-3/4 px-2 focus:outline-none"
+                           placeholder="Search pod" v-model="searchQuery"
+                           @input="debounceSearchQuery()">
+                    <button class="py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white font-bold
+border border-blue-500 rounded-lg focus:outline-none focus:border-blue-700" @click="createPod">Create Pod</button>
+                </div>
+                <table class="table-auto w-full">
+                    <thead>
+                    <tr>
+                        <th class="px-4 py-2">Name</th>
+                        <th class="px-4 py-2">Image</th>
+                        <th class="px-4 py-2">Status</th>
+                        <th class="px-4 py-2">Action</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr v-if="pods.length === 0">
+                        <td colspan="4" class="text-center py-8">No data found</td>
+                    </tr>
+                    <template v-for="pod in pods">
+                        <tr v-if="!showSearchResult || (showSearchResult && searchResult.indexOf(pod.name) !== -1)">
+                            <td class="border px-4 py-2">{{pod.name}}</td>
+                            <td class="border px-4 py-2">{{pod.image}}</td>
+                            <td class="border px-4 py-2">{{pod.status}}</td>
+                            <td class="border px-4 py-2">
+                                <button class="py-1 px-2 bg-blue-500 hover:bg-blue-600 text-white font-bold
+    border border-blue-500 rounded-lg focus:outline-none focus:border-blue-700"
+                                        @click="showTerminal(pod.name)">Shell</button>
+                                <button class="py-1 px-2 bg-red-500 hover:bg-red-600 text-white font-bold
+    border border-red-500 rounded-lg focus:outline-none focus:border-red-700"
+                                        @click="deletePod(pod.name)">Delete</button>
+                            </td>
+                        </tr>
+                    </template>
+                    </tbody>
+                </table>
+                <!-- pagination -->
+                <div class="px-4 py-4 flex justify-between" v-if="pods.length > 0">
+                    <button class="py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white font-bold
+border border-blue-500 rounded-lg focus:outline-none focus:border-blue-700" @click="prevPage">Prev</button>
+                    <div class="text-gray-700 text-center leading-5 px-4 py-2 rounded-lg">
+                        Page {{currentPage}} of {{pageCount}}
+                    </div>
+                    <button class="py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white font-bold
+border border-blue-500 rounded-lg focus:outline-none focus:border-blue-700" @click="nextPage">Next</button>
+                </div>
+            </div>
+            <!-- the included terminal form -->
+            <div v-if="currentView === 'terminal'">
+                <form id="terminal-form" v-on:submit.prevent>
+                    <div class="bg-gray-700 text-white h-16 flex items-center px-4 font-semibold">
+                        {{podName}} - Terminal
+                    </div>
+                    <textarea class="w-full h-full bg-black text-white p-2 font-mono focus:outline-none" rows="20"
+                              id="terminal" readonly></textarea>
+                    <div class="flex justify-between">
+                        <input type="text" class="py-4 w-full bg-gray-100 p-2 focus:outline-none"
+                               placeholder="Command to execute" v-model="terminalCommand">
+                        <button class="py-4 px-4 bg-blue-500 hover:bg-blue-600 text-white font-bold
+border border-blue-500 rounded-lg focus:outline-none focus:border-blue-700"
+                                @click="runCommand">Run</button>
+                        <button class="py-4 px-4 bg-blue-500 hover:bg-blue-600 text-white font-bold
+border border-blue-500 rounded-lg focus:outline-none focus:border-blue-700"
+                                @click="closeTerminal">Close Terminal</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    const app = Vue.createApp({
+        data() {
+            return {
+                currentView: 'list',
+                pods: [],
+                searchQuery: '',
+                showSearchResult: false,
+                searchResult: [],
+                terminalCommand: '',
+                podName: '',
+                terminal: null,
+                paginationCount: 10,
+                currentPage: 1
+            }
+        },
+        mounted() {
+            this.fetchPods();
+        },
+        methods: {
+            fetchPods() {
+                axios.get('/api.k8s/pods')
+                    .then(response => this.pods = response.data.items.map(pod => {
+                        return {
+                            name: pod.metadata.name,
+                            image: pod.spec.containers[0].image,
+                            status: pod.status.phase
+                        }
+                    }))
+                    .catch(error => console.log(error));
+            },
+            createPod() {
+                let data = {
+                    'name': `test-pod-${Math.floor(Math.random() * 100)}`,
+                    'image': 'nginx:latest'
+                };
+
+                axios.post('/api.k8s/pods', data)
+                    .then(response => this.fetchPods())
+                    .catch(error => console.log(error));
+            },
+            deletePod(podname) {
+                axios.delete(`/api.k8s/pods/${podname}`)
+                    .then(response => this.fetchPods())
+                    .catch(error => console.log(error));
+            },
+            //
+            showTerminal(podName) {
+                if (this.terminal !== null) {
+                    this.terminal.dispose();
+                }
+                this.currentView = 'terminal';
+                this.podName = podName;
+                this.terminal = new Terminal({
+                    cursorBlink: true,
+                    fontSize: 14
+                });
+                this.terminal.open(document.getElementById('terminal'));
+                this.connectWebsocket(this.podName);
+            },
+            connectWebsocket(podName) {
+                let protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                let host = window.location.hostname;
+                let port = window.location.port;
+                if (port === '') {
+                    if (protocol === 'wss:') {
+                        port = '443';
+                    } else {
+                        port = '80';
+                    }
+                }
+                let url = `${protocol}//${host}:${port}/api.k8s/pods/${podName}/terminal`;
+                let socket = new WebSocket(url);
+                socket.onopen = () => {
+                    this.terminal.write('\nConnected to terminal\n');
+                    socket.send(JSON.stringify({
+                        "op": "bind",
+                        "data": "pty",
+                        "metadata": {
+                            "namespace": "default",
+                            "name": podName,
+                            "container": "",
+                            "stdin": true,
+                            "stdout": true,
+                            "stderr": true,
+                            "tty": true,
+                            "term": "xterm",
+                            "cols": 200,
+                            "rows": 50
+                        }
+                    }));
+                };
+                socket.onerror = (err) => {
+                    this.terminal.write(`\nError: ${err}\n`);
+                };
+                socket.onmessage = (message) => {
+                    let data = JSON.parse(message.data);
+                    if (data.status !== undefined) {
+                        this.terminal.write(`\nError: ${data.status}\n`);
+                    } else if (typeof data.stream !== 'undefined') {
+                        this.terminal.write(data.stream);
+                    }
+                };
+            },
+            runCommand() {
+                let socket = this.terminal._core._inputHandler._terminal._socket;
+                let bindOp = {
+                    "op": "bind",
+                    "data": "terminal.input",
+                    "metadata": {}
+                };
+                let prompt = this.terminal._core._inputHandler._prompt;
+                socket.send(JSON.stringify(bindOp));
+                socket.send(this.terminalCommand + '\r');
+                this.terminalCommand = '';
+                this.terminal._core._inputHandler._prompt = '$';
+            },
+            closeTerminal() {
+                let socket = this.terminal._core._inputHandler._terminal._socket;
+                let unbindOp = {
+                    "op": "unbind",
+                    "data": "pty",
+                    "metadata": {}
+                };
+                socket.send(JSON.stringify(unbindOp));
+                this.terminal.dispose();
+                this.currentView = 'list';
+            },
+            // 搜索框输入的防抖函数
+            debounceSearchQuery: _.debounce(function () {
+                let query = this.searchQuery.toLowerCase();
+                this.showSearchResult = true;
+                this.searchResult = this.pods.filter(function (pod) {
+                    return pod.name.toLowerCase().indexOf(query) !== -1;
+                }).map(function (pod) {
+                    return pod.name;
+                });
+            }, 100),
+            // 切换到上一页
+            prevPage() {
+                if (this.currentPage > 1) {
+                    this.currentPage--;
+                }
+            },
+            // 切换到下一页
+            nextPage() {
+                if (this.currentPage < this.pageCount) {
+                    this.currentPage++;
+                }
+            }
+        },
+        computed: {
+            // 计算出分页的总数
+            pageCount() {
+                let listSize = this.showSearchResult ? this.searchResult.length : this.pods.length;
+                return Math.ceil(listSize / this.paginationCount);
+            },
+            // 计算当前页数据
+            paginatedData() {
+                let endIndex = this.currentPage * this.paginationCount;
+                let startIndex = endIndex - this.paginationCount;
+                let listData = this.showSearchResult ? this.searchResult : this.pods;
+                return listData.slice(startIndex, endIndex);
+            }
+        }
+    });
+    app.mount('#app');
+</script>
+</body>
+</html>

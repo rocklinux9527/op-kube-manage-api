@@ -3,7 +3,7 @@
 
 from tools.config import setup_logging
 
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, WebSocket
 from pydantic import BaseModel
 from typing import List, Optional, Set, Dict, Any
 from starlette.middleware.cors import CORSMiddleware
@@ -32,12 +32,12 @@ from sql_app.kube_deploy_db_play import insert_kube_deployment, updata_kube_depl
 
 from sql_app.models import ServiceK8sData
 # db ops kube namespace
-from sql_app.kube_ns_db_play import insert_db_ns, delete_db_ns, query_ns, query_ns_any
+from sql_app.kube_ns_db_play import insert_db_ns, delete_db_ns, query_ns, query_ns_any,query_kube_db_ns_all
 
 # db ops kube service
 from sql_app.kub_svc_db_play import insert_db_svc, delete_db_svc, query_kube_svc, query_kube_svc_by_name, \
     updata_kube_svc, \
-    query_kube_svc_by_id
+    query_kube_svc_by_id,query_kube_all_svc_name,query_kube_all_svc_port
 
 from kube.kube_ingress import k8sIngressManager
 # db ops kube ingress
@@ -47,6 +47,12 @@ from sql_app.kube_ingress_db_play import insert_db_ingress, updata_db_ingress, d
 #  k8s install deploy
 
 from kube.kube_deployment import k8sDeploymentManager
+from fastapi import FastAPI, HTTPException
+from fastapi import Depends
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from passlib.hash import ldap_salted_sha1
+
+security = HTTPBasic()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 app_name = "op-kube-manage-api"
@@ -57,10 +63,7 @@ app = FastAPI(
 )
 router = APIRouter()
 
-origins = [
-    "http://0.0.0.0:8888", "http://192.168.1.5:9527"
-]
-
+origins = ["http://192.168.0.8:9527"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -234,6 +237,12 @@ def get_db_namespace_plan(page: int = Query(1, gt=0), page_size: int = Query(10,
     db_result = query_ns(page, page_size)
     return db_result
 
+@app.get("/v1/db/k8s/ns/all/", summary="Get namespace App All Plan", tags=["NamespaceKubernetes"])
+def get_db_namespace_plan():
+    ns_all_db_result = query_kube_db_ns_all()
+    return ns_all_db_result
+
+
 
 @app.post("/v1/db/k8s/ns/plan/", summary="Add namespace App Plan", tags=["NamespaceKubernetes"])
 async def post_namespace_plan(request: Request, request_data: createNameSpace):
@@ -337,6 +346,7 @@ async def post_deploy_plan(request: Request, request_data: CreateDeployK8S) -> D
     env_name = data.get("env")
     health_liven_ess_path = data.get("health_liven_ess")
     health_readiness_path = data.get("health_readiness")
+
     if not (cluster_name and env_name):
         raise HTTPException(status_code=400, detail="The cluster or environment does not exist")
 
@@ -424,11 +434,12 @@ async def put_deploy_plan(request: Request, request_data: UpdateDeployK8S):
             raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
         update_deploy_instance = k8sDeploymentManager(client_path.get("client_key_path"), data.get('namespace'))
         data_result = update_deploy_instance.replace_kube_deployment(data.get('deployment_name'),
-                                                                     data.get('replicas'), data.get("image"),
+                                                                     item_dict.get("replicas"), data.get("image"),
                                                                      data.get('namespace'), resources_name,
                                                                      deploy_env_dict,
                                                                      container_port_name, health_liven_ess_path,
                                                                      health_readiness_path)
+        print("操作集群的,返回值", data_result)
         if data_result.get("code") != 0:
             raise HTTPException(status_code=500, detail="Failed to update kubernetes deployment")
         update_id = generate_deployment_id()
@@ -642,6 +653,20 @@ def get_service_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0
                                  target_port)
     return result_data
 
+@app.get("/v1/k8s/service/all/plan/", summary="Get ALL Service App Plan", tags=["ServiceKubernetes"])
+def get_all_service_plan(env: Optional[str], cluster_name: Optional[str], namespace: Optional[str]):
+    if not (env and cluster_name and namespace):
+        raise HTTPException(status_code=400, detail="Incorrect parameters")
+    result_data = query_kube_all_svc_name(env, cluster_name, namespace)
+    return result_data
+
+@app.get("/v1/k8s/service/svc-port/plan/", summary="Get ALL Service Port App Plan", tags=["ServiceKubernetes"])
+def get_all_service_port_plan(env: Optional[str], cluster_name: Optional[str], namespace: Optional[str], svc_name: Optional[str]):
+    if not (env and cluster_name and namespace and svc_name):
+        raise HTTPException(status_code=400, detail="Incorrect parameters")
+    result_data = query_kube_all_svc_port(env, cluster_name, namespace,svc_name)
+    result_data = query_kube_all_svc_port(env, cluster_name, namespace,svc_name)
+    return result_data
 
 @app.delete("/v1/k8s/service/plan/", summary="Delete Service App Plan", tags=["ServiceKubernetes"])
 async def delete_service_plan(ReQuest: Request, request_data: deleteSvcK8S):
@@ -829,7 +854,7 @@ def get_ingress_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0
                      ingress_name: Optional[str] = None, host: Optional[str] = None,
                      svc_name: Optional[str] = None, svc_port: Optional[str] = None, tls: Optional[str] = None,
                      tls_secret: Optional[str] = None):
-    result_data = query_kube_ingres(page, page_size,env, cluster_name, namespace, ingress_name, host, svc_name, svc_port, tls,
+    result_data = query_kube_ingres(page, page_size, env, cluster_name, namespace, ingress_name, host, svc_name, svc_port, tls,
                                     tls_secret)
     return result_data
 
@@ -875,7 +900,59 @@ async def delete_ingress_plan(request: Request, request_data: deleteIngressK8S):
         else:
             return {"code": 1, "messages": "delete Ingress App failure", "status": True, "data": "failure"}
 
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    websockets.append(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            for ws in websockets:
+                if ws == websocket:
+                    continue
+                await ws.send_text(data)
+    except:
+        websockets.remove(websocket)
+
+# web websocket
+@app.websocket("/{namespace}/{pod_name}")
+async def websocket_endpoint(websocket: WebSocket, namespace: str, pod_name: str):
+    await websocket.accept()
+    await pod_websocket(websocket, namespace, pod_name, "bash")
+
+def authenticate_user(username: str, password: str):
+    """
+    认证用户
+    :param username: 用户名
+    :param password: 密码
+    :return: 如果用户认证成功，返回 True，否则返回 False
+    """
+    # 这里假设用户的用户名和密码已经保存在一个 dict 对象中了
+    users = {
+        "alice": ldap_salted_sha1.hash("alice_password"),
+        "bob": ldap_salted_sha1.hash("bob_password"),
+    }
+    if username in users:
+        # 验证密码
+        if ldap_salted_sha1.verify(password, users[username]):
+            return True
+    return False
+@app.post("/login/")
+def login(credentials: HTTPBasicCredentials = Depends(security)):
+    """
+    用户登录验证，如果成功返回用户 token，否则返回 HTTP 401 错误
+    """
+    if not authenticate_user(credentials.username, credentials.password):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid username or password",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    # 这里生成一个随机字符串作为用户 token
+    # 真实情况下应该使用更安全的 token 生成方式
+    token = "a_random_token"
+    return {"token": token}
 
 if __name__ == "__main__":
     setup_logging(log_file_path="fastapi.log", project_root="./logs", message="startup fastapi")
-    uvicorn.run(app, host="127.0.0.1", port=8888, log_level="debug")
+    uvicorn.run(app, host="0.0.0.0", port=8888, log_level="debug")

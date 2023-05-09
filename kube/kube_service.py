@@ -118,7 +118,6 @@ class K8sServiceManager:
             )
             response = self.v1.replace_namespaced_service(name=svc_name, namespace=namespace, body=body)
             if response:
-                print(response)
                 return {
                     "code": 0,
                     "messages": "Update Service Success ",

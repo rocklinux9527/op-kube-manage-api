@@ -24,7 +24,7 @@ def model_create(model, request_data, fields):
     ])
     session.commit()
     session.close()
-    return {"code": 0, "messages": "create success", "status": True, "data": "success"}
+    return {"code": 20000, "messages": "create success", "status": True, "data": "success"}
 
 
 def model_update(model, instanceid, request_data, fields):
@@ -45,7 +45,7 @@ def model_update(model, instanceid, request_data, fields):
     session.commit()
     session.close(
     )
-    return {"code": 0, "messages": "update success", "status": True, "data": "success"}
+    return {"code": 20000, "messages": "update success", "status": True, "data": "success"}
 
 
 def model_updateId(model, id, request_data, fields):
@@ -65,7 +65,7 @@ def model_updateId(model, id, request_data, fields):
             setattr(data, field, request_data.get(field))
     session.commit()
     session.close()
-    return {"code": 0, "messages": "update success", "status": True, "data": "success"}
+    return {"code": 20000, "messages": "update success", "status": True, "data": "success"}
 
 
 def model_delete(model, id):
@@ -80,7 +80,7 @@ def model_delete(model, id):
         data = session.query(model).filter_by(id=id).delete()
         session.commit()
         session.close()
-        return {"code": 0, "messages": "delete success", "status": True, "data": "success"}
+        return {"code": 20000, "messages": "delete success", "status": True, "data": "success"}
 
     else:
-        return {"code": 1, "messages": "id is none failure", "status": False, "data": "failure"}
+        return {"code": 50000, "messages": "id is none failure", "status": False, "data": "failure"}

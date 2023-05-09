@@ -52,10 +52,10 @@ class k8sDeploymentManager:
                 "status": False
             }
 
-    def create_kube_deployment(self, namespace, deployment_name, resources, replicas, image, deploy_env, container_port, health_liven_ess=None, health_readiness=None):
+    def create_kube_deployment(self, namespace, deployment_name, resources, replicas, image, env_vars, container_port, health_liven_ess=None, health_readiness=None):
         """
         1.命名空间和body内容
-        :param ns: str 命名空间名称
+        :param ns: str 命名空间名称deploy_env
         :param deployment_name: str deployment名称
         :param resources: str 资源名称
         :param replicas: int 副本数
@@ -98,7 +98,7 @@ class k8sDeploymentManager:
                                     name=deployment_name,
                                     image=image,
                                     ports=[client.V1ContainerPort(container_port=container_port)],
-                                    env=[deploy_env],
+                                    env=[client.V1EnvVar(name=key, value=value) for key, value in env_vars.items()],
                                     resources=resources
                                 )]
                             )
@@ -107,7 +107,7 @@ class k8sDeploymentManager:
                 )
             else:
                 container = client.V1Container(
-                    env=[deploy_env],
+                    env=[client.V1EnvVar(name=key, value=value) for key, value in env_vars.items()],
                     name=deployment_name,
                     image=image,
                     resources=resources,
@@ -145,7 +145,7 @@ class k8sDeploymentManager:
                     spec=spec)
                 data = self.apps_api.create_namespaced_deployment(namespace=namespace, body=body)
                 return {
-                    "code": 0,
+                    "code": 20000,
                     "messages": "Create Deployment Success ",
                     "data": data,
                     "status": True
@@ -163,7 +163,7 @@ class k8sDeploymentManager:
                 msg = f"Create Deployment failure: Namespace {namespace} not found"
             else:
                 msg = "Create Deployment failure"
-            return {"code": 1, "messages": msg, "data": "", "status": False}
+            return {"code": 50000, "messages": msg, "data": "", "status": False}
 
     def delete_kube_deployment(self, namespace, deploy_name):
         """
@@ -185,7 +185,7 @@ class k8sDeploymentManager:
                 msg = "delete deployment failure"
             return {"code": 1, "messages": msg, "data": "", "status": False}
 
-    def replace_kube_deployment(self, deployment_name, replicas, image, namespace, resources, deploy_env, container_port, health_liven_ess=None, health_readiness=None):
+    def replace_kube_deployment(self, deployment_name, replicas, image, namespace, resources, env_vars, container_port, health_liven_ess=None, health_readiness=None):
         """
         1.修改deployment资源对象
         :param deployment_name: str deployment名称
@@ -220,7 +220,7 @@ class k8sDeploymentManager:
                                     name=deployment_name,
                                     image=image,
                                     ports=[client.V1ContainerPort(container_port=container_port)],
-                                    env=[deploy_env],
+                                    env=[client.V1EnvVar(name=key, value=value) for key, value in env_vars.items()],
                                     resources=resources
                                 )]
                             )
@@ -236,7 +236,7 @@ class k8sDeploymentManager:
                 }
             else:
                 container = client.V1Container(
-                    env=[deploy_env],
+                    env=[client.V1EnvVar(name=key, value=value) for key, value in env_vars.items()],
                     name=deployment_name,
                     image=image,
                     resources=resources,

@@ -1,8 +1,7 @@
 # https://github.com/kubernetes-client/python/tree/master/kubernetes/docs
-#from logging
+# from logging
 
 from tools.config import setup_logging
-
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, WebSocket
 from pydantic import BaseModel
 from typing import List, Optional, Set, Dict, Any
@@ -26,18 +25,19 @@ from sqlalchemy.orm import sessionmaker, query, Session
 from sql_app.database import engine
 from sql_app.ops_log_db_play import query_operate_ops_log, insert_ops_bot_log
 from sql_app.kube_cnfig_db_play import insert_kube_config, updata_kube_config, delete_kube_config, query_kube_config, \
-    query_kube_db_env_cluster_all, query_kube_config_id, query_kube_db_env_all,query_kube_db_cluster_all, query_kube_db_env_cluster_wrapper
+    query_kube_db_env_cluster_all, query_kube_config_id, query_kube_db_env_all, query_kube_db_cluster_all, \
+    query_kube_db_env_cluster_wrapper
 from sql_app.kube_deploy_db_play import insert_kube_deployment, updata_kube_deployment, delete_kube_deployment, \
     query_kube_deployment, query_kube_deployment_by_name
 
 from sql_app.models import ServiceK8sData
 # db ops kube namespace
-from sql_app.kube_ns_db_play import insert_db_ns, delete_db_ns, query_ns, query_ns_any,query_kube_db_ns_all
+from sql_app.kube_ns_db_play import insert_db_ns, delete_db_ns, query_ns, query_ns_any, query_kube_db_ns_all
 
 # db ops kube service
 from sql_app.kub_svc_db_play import insert_db_svc, delete_db_svc, query_kube_svc, query_kube_svc_by_name, \
     updata_kube_svc, \
-    query_kube_svc_by_id,query_kube_all_svc_name,query_kube_all_svc_port
+    query_kube_svc_by_id, query_kube_all_svc_name, query_kube_all_svc_port
 
 from kube.kube_ingress import k8sIngressManager
 # db ops kube ingress
@@ -52,7 +52,14 @@ from fastapi import Depends
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from passlib.hash import ldap_salted_sha1
 
-security = HTTPBasic()
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+# login token
+import jwt
+import datetime
+
+security = HTTPBearer()
+JWT_SECRET_KEY = 'op-kube-manager-api-jwt'  # JWT 密钥
+JWT_ALGORITHM = 'HS256'  # JWT 加密算法
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 app_name = "op-kube-manage-api"
@@ -71,6 +78,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 class KubeConfig(BaseModel):
     env: str
@@ -110,10 +118,12 @@ def get_kube_config(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0,
     result_data = query_kube_config(page, page_size, env, cluster_name, server_address, client_key_path)
     return result_data
 
+
 @app.get("/v1/kube/env/list/", summary="get KubeConfig k8s EnvList Plan", tags=["ConfigKubernetes"])
 def get_kube_envList():
     result_data = query_kube_db_env_all()
     return result_data
+
 
 @app.get("/v1/kube/cluster/List/", summary="get KubeConfig k8s EnvList Plan", tags=["ConfigKubernetes"])
 def get_kube_clusterList():
@@ -125,6 +135,7 @@ def get_kube_clusterList():
 def get_kube_config_content_v1(env: str, cluster_name: str):
     result_data = get_kube_config_content(env, cluster_name)
     return result_data
+
 
 @app.get("/v1/kube/kube/file/list", summary="get KubeConfig file list", tags=["ConfigKubernetes"])
 def get_kube_config_file_list():
@@ -138,21 +149,21 @@ async def create_kube_config(request: Request, request_data: KubeConfig):
     data = request_data.dict()
     if not all(data.get(field) for field in
                ['env', 'cluster_name', 'server_address', 'ca_data', 'client_crt_data', 'client_key_data']):
-        return {'code': 1, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
+        return {'code': 20000, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     result_app_name = session.query(KubeK8sConfig).filter_by(env=data.get("env"),
                                                              cluster_name=data.get('cluster_name')).first()
     if result_app_name:
         msg = f'cluster_info 环境:{data["env"]} 集群名称:{data["cluster_name"]} existing 提示: 已经存在,不允许覆盖操作!'
-        return {"code": 1, "data": msg, "message": "cluster_info Record already exists", "status": True}
+        return {"code": 20000, "data": msg, "message": "cluster_info Record already exists", "status": True}
     result = add_kube_config(*data.values())
     if result.get("code") != 0:
-        return {"code": 1, "messages": "create kube config failure ", "status": True, "data": "failure"}
+        return {"code": 50000, "messages": "create kube config failure ", "status": True, "data": "failure"}
 
     result_key_path = get_key_file_path(data['env'], data['cluster_name'])
     if not result_key_path:
-        return {"code": 1, "messages": "create kube config file path failure ", "status": True, "data": "failure"}
+        return {"code": 50000, "messages": "create kube config file path failure ", "status": True, "data": "failure"}
 
     insertInstance = insert_kube_config(*data.values(), result_key_path)
     user_request_data = await request.json()
@@ -192,21 +203,21 @@ async def delete_kube_config_v1(ReQuest: Request, request_data: deleteKubeConfig
     env = item_dict.get("env")
     cluster_name = item_dict.get('cluster_name')
     if not env or not cluster_name:
-        return {"code": 1, "messages": "Delete kube config failure, incorrect parameters", "status": True,
+        return {"code": 50000, "messages": "Delete kube config failure, incorrect parameters", "status": True,
                 "data": "failure"}
     file_name = f"{env}_{cluster_name}.conf"
     try:
         result_data = await asyncio.gather(delete_kubeconfig_file(file_name))
         for result in result_data:
             if result["code"] != 0:
-                return {"code": 1, "messages": "Delete kube config failure 集群配置文件不存在", "status": True,
+                return {"code": 50000, "messages": "Delete kube config failure 集群配置文件不存在", "status": True,
                         "data": "failure"}
             delete_instance = delete_kube_config(item_dict.get('id'))
             insert_ops_bot_log("Delete kube config", json.dumps(userRequestData), "delete", json.dumps(delete_instance))
             return delete_instance
     except Exception as e:
         print(str(e))
-        return {"code": 1, "messages": str(e), "status": True, "data": "failure"}
+        return {"code": 50000, "messages": str(e), "status": True, "data": "failure"}
 
 
 class createNameSpace(BaseModel):
@@ -237,11 +248,11 @@ def get_db_namespace_plan(page: int = Query(1, gt=0), page_size: int = Query(10,
     db_result = query_ns(page, page_size)
     return db_result
 
+
 @app.get("/v1/db/k8s/ns/all/", summary="Get namespace App All Plan", tags=["NamespaceKubernetes"])
 def get_db_namespace_plan():
     ns_all_db_result = query_kube_db_ns_all()
     return ns_all_db_result
-
 
 
 @app.post("/v1/db/k8s/ns/plan/", summary="Add namespace App Plan", tags=["NamespaceKubernetes"])
@@ -271,10 +282,11 @@ async def post_namespace_plan(request: Request, request_data: createNameSpace):
                 raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
             insert_ns_instance = K8sNamespaceManager(client_path.get("client_key_path"))
             insert_result_data = insert_ns_instance.create_kube_namespaces(namespace_name)
-            if insert_result_data.get("code") != 0:
+            print(insert_result_data)
+            if insert_result_data.get("code") != 20000:
                 raise HTTPException(status_code=400, detail=insert_result_data)
             result = insert_db_ns(env_name, cluster_name, data.get("ns_name"), data.get("used"))
-            if result.get("code") != 0:
+            if result.get("code") != 20000:
                 raise HTTPException(status_code=400, detail="create kube namespace  failure ")
             insert_ops_bot_log("Insert kube namespace ", json.dumps(user_request_data), "post", json.dumps(result))
             return result
@@ -328,6 +340,11 @@ class deleteDeployK8S(BaseModel):
     namespace: str
 
 
+class loginUser(BaseModel):
+    username: str
+    password: str
+
+
 def generate_deployment_id():
     current_date = datetime.datetime.now().strftime("%Y%m%d")
     random_string = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz', k=4))
@@ -362,19 +379,34 @@ async def post_deploy_plan(request: Request, request_data: CreateDeployK8S) -> D
         if not (client_path.get("client_key_path")):
             raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
         deploy_env = data.get("deploy_env")
-        deploy_env_dict = {}
-        try:
-            for env in deploy_env.split(","):
-                k, v = env.split("=")
-                deploy_env_dict[k] = v
-        except Exception as e:
-            raise HTTPException(status_code=400,
-                                detail="Failed to create Deployment  because the deploy env format is incorrect")
+        if isinstance(deploy_env, str):
+            try:
+                deploy_env_dict = dict(kv.split('=') for kv in deploy_env.split(','))
+                print("==",deploy_env_dict)
+            except ValueError:
+                deploy_env_dict = {deploy_env.split('=')[0]: deploy_env.split('=')[1]}
+                print("one",deploy_env_dict)
+        elif isinstance(deploy_env, dict):
+            deploy_env_dict = deploy_env
+            print("sss",deploy_env_dict)
+        else:
+            raise HTTPException(status_code=400, detail="deploy_env must be a string or dictionary")
+
+    # deploy_env = data.get("deploy_env")
+        # deploy_env_dict = {}
+        # try:
+        #     for env in deploy_env.split(","):
+        #         k, v = env.split("=")
+        #         deploy_env_dict[k] = v
+        # except Exception as e:
+        #     raise HTTPException(status_code=400,
+        #                         detail="Failed to create Deployment  because the deploy env format is incorrect")
         insert_deploy_instance = k8sDeploymentManager(client_path.get("client_key_path"), data.get('namespace'))
         insert_result_data = insert_deploy_instance.create_kube_deployment(
             data.get('namespace'), data.get("app_name"), data.get("resources"), data.get("replicas"),
             data.get("image"), deploy_env_dict, data.get("ports"), health_liven_ess_path, health_readiness_path)
-        if insert_result_data.get("code") != 0:
+
+        if insert_result_data.get("code") != 20000:
             raise HTTPException(status_code=400, detail=insert_result_data.get("message"))
         deploy_id = generate_deployment_id()
         result = insert_kube_deployment(item_dict.get("app_name"), item_dict.get("env"),
@@ -418,16 +450,18 @@ async def put_deploy_plan(request: Request, request_data: UpdateDeployK8S):
     deployment = session.query(DeployK8sData).filter(DeployK8sData.id == data.get('id')).first()
     if not deployment:
         raise HTTPException(status_code=404, detail="Deployment not found")
-
-    deploy_env_dict = {}
-    try:
-        for env in deploy_env_name.split(","):
-            k, v = env.split("=")
-            deploy_env_dict[k] = v
-    except Exception as e:
-        raise HTTPException(status_code=400,
-                            detail="Failed to create Deployment  because the deploy env format is incorrect")
-
+    deploy_env = data.get("deploy_env")
+    if isinstance(deploy_env, str):
+        try:
+            deploy_env_dict = dict(kv.split('=') for kv in deploy_env.split(','))
+            print("==",deploy_env_dict)
+        except ValueError:
+            deploy_env_dict = {deploy_env.split('=')[0]: deploy_env.split('=')[1]}
+            print("one",deploy_env_dict)
+    elif isinstance(deploy_env, dict):
+        deploy_env_dict = deploy_env
+    else:
+        raise HTTPException(status_code=400, detail="deploy_env must be a string or dictionary")
     result_cluster_info = query_kube_db_env_cluster_all(env_name, cluster_name)
     for client_path in result_cluster_info.get("data"):
         if not (client_path.get("client_key_path")):
@@ -439,7 +473,6 @@ async def put_deploy_plan(request: Request, request_data: UpdateDeployK8S):
                                                                      deploy_env_dict,
                                                                      container_port_name, health_liven_ess_path,
                                                                      health_readiness_path)
-        print("操作集群的,返回值", data_result)
         if data_result.get("code") != 0:
             raise HTTPException(status_code=500, detail="Failed to update kubernetes deployment")
         update_id = generate_deployment_id()
@@ -458,7 +491,8 @@ async def put_deploy_plan(request: Request, request_data: UpdateDeployK8S):
 
 
 @app.get("/v1/k8s/deployment/plan/", summary="Get deployment App Plan", tags=["DeployKubernetes"])
-def get_deploy_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000), env: Optional[str] = None, cluster: Optional[str] = None, app_name: Optional[str] = None,
+def get_deploy_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000), env: Optional[str] = None,
+                    cluster: Optional[str] = None, app_name: Optional[str] = None,
                     image: Optional[str] = None, ports: Optional[str] = None,
                     image_pull_secrets: Optional[str] = None, deploy_id: Optional[int] = None):
     result_data = query_kube_deployment(page, page_size, env, cluster, app_name, image, ports, image_pull_secrets, deploy_id)
@@ -475,7 +509,7 @@ async def del_deploy_plan(request: Request, request_data: deleteDeployK8S):
     namespace_name = data.get('namespace')
     if not (app_name and namespace_name):
         return {
-            "code": 1,
+            "code": 20000,
             "messages": "Delete deploy App failure, Incorrect parameters",
             "status": True,
             "data": "failure"
@@ -500,7 +534,7 @@ async def del_deploy_plan(request: Request, request_data: deleteDeployK8S):
             return delete_instance
         else:
             return {
-                "code": 1,
+                "code": 50000,
                 "messages": "delete deploy App  failure ",
                 "status": True,
                 "data": "failure",
@@ -645,13 +679,15 @@ async def put_service_plan(request: Request, request_data: UpdateSvcK8S):
 
 
 @app.get("/v1/k8s/service/plan/", summary="Get Service App Plan", tags=["ServiceKubernetes"])
-def get_service_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000), env: Optional[str] = None, cluster_name: Optional[str] = None, namespace: Optional[str] = None,
+def get_service_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000), env: Optional[str] = None,
+                     cluster_name: Optional[str] = None, namespace: Optional[str] = None,
                      svc_name: Optional[str] = None, selector_labels: Optional[str] = None,
                      svc_port: Optional[str] = None,
                      svc_type: Optional[str] = None, target_port: Optional[str] = None):
     result_data = query_kube_svc(page, page_size, env, cluster_name, namespace, svc_name, selector_labels, svc_port, svc_type,
                                  target_port)
     return result_data
+
 
 @app.get("/v1/k8s/service/all/plan/", summary="Get ALL Service App Plan", tags=["ServiceKubernetes"])
 def get_all_service_plan(env: Optional[str], cluster_name: Optional[str], namespace: Optional[str]):
@@ -660,13 +696,14 @@ def get_all_service_plan(env: Optional[str], cluster_name: Optional[str], namesp
     result_data = query_kube_all_svc_name(env, cluster_name, namespace)
     return result_data
 
+
 @app.get("/v1/k8s/service/svc-port/plan/", summary="Get ALL Service Port App Plan", tags=["ServiceKubernetes"])
 def get_all_service_port_plan(env: Optional[str], cluster_name: Optional[str], namespace: Optional[str], svc_name: Optional[str]):
     if not (env and cluster_name and namespace and svc_name):
         raise HTTPException(status_code=400, detail="Incorrect parameters")
-    result_data = query_kube_all_svc_port(env, cluster_name, namespace,svc_name)
-    result_data = query_kube_all_svc_port(env, cluster_name, namespace,svc_name)
+    result_data = query_kube_all_svc_port(env, cluster_name, namespace, svc_name)
     return result_data
+
 
 @app.delete("/v1/k8s/service/plan/", summary="Delete Service App Plan", tags=["ServiceKubernetes"])
 async def delete_service_plan(ReQuest: Request, request_data: deleteSvcK8S):
@@ -850,7 +887,8 @@ async def put_ingress_plan(request: Request, data: UpdateIngressK8S):
 
 
 @app.get("/v1/k8s/ingress/plan/", summary="Get Ingress App Plan", tags=["IngressKubernetes"])
-def get_ingress_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000), env: Optional[str] = None, cluster_name: Optional[str] = None, namespace: Optional[str] = None,
+def get_ingress_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000), env: Optional[str] = None,
+                     cluster_name: Optional[str] = None, namespace: Optional[str] = None,
                      ingress_name: Optional[str] = None, host: Optional[str] = None,
                      svc_name: Optional[str] = None, svc_port: Optional[str] = None, tls: Optional[str] = None,
                      tls_secret: Optional[str] = None):
@@ -900,6 +938,7 @@ async def delete_ingress_plan(request: Request, request_data: deleteIngressK8S):
         else:
             return {"code": 1, "messages": "delete Ingress App failure", "status": True, "data": "failure"}
 
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -914,11 +953,13 @@ async def websocket_endpoint(websocket: WebSocket):
     except:
         websockets.remove(websocket)
 
+
 # web websocket
 @app.websocket("/{namespace}/{pod_name}")
 async def websocket_endpoint(websocket: WebSocket, namespace: str, pod_name: str):
     await websocket.accept()
     await pod_websocket(websocket, namespace, pod_name, "bash")
+
 
 def authenticate_user(username: str, password: str):
     """
@@ -927,8 +968,8 @@ def authenticate_user(username: str, password: str):
     :param password: 密码
     :return: 如果用户认证成功，返回 True，否则返回 False
     """
-    # 这里假设用户的用户名和密码已经保存在一个 dict 对象中了
     users = {
+        "admin": ldap_salted_sha1.hash("111111"),
         "alice": ldap_salted_sha1.hash("alice_password"),
         "bob": ldap_salted_sha1.hash("bob_password"),
     }
@@ -937,21 +978,80 @@ def authenticate_user(username: str, password: str):
         if ldap_salted_sha1.verify(password, users[username]):
             return True
     return False
-@app.post("/login/")
-def login(credentials: HTTPBasicCredentials = Depends(security)):
+
+
+@app.post("/user/login/", summary="用户登录验证，如果成功返回用户 token，否则返回 HTTP 401 错误", tags=["sys-login-user"])
+def login(request_data: loginUser):
     """
     用户登录验证，如果成功返回用户 token，否则返回 HTTP 401 错误
     """
-    if not authenticate_user(credentials.username, credentials.password):
+    data = request_data.dict()
+    username = data.get("username")
+    password = data.get("password")
+    if not authenticate_user(username, password):
         raise HTTPException(
             status_code=401,
             detail="Invalid username or password",
             headers={"WWW-Authenticate": "Basic"},
         )
-    # 这里生成一个随机字符串作为用户 token
-    # 真实情况下应该使用更安全的 token 生成方式
-    token = "a_random_token"
-    return {"token": token}
+    expires = datetime.datetime.utcnow() + datetime.timedelta(hours=8)
+    payload = {'username': username, 'exp': expires}
+    header = {
+        "alg": "HS256",
+        "typ": "JWT"
+    }
+    token = jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM, headers=header)
+    # 返回成功信息及 token
+    data = {
+        'code': 20000,
+        'message': 'Login User Success',
+        'data': {
+            'token': token,
+            'token_type': 'Bearer'
+        }
+    }
+    return data
+
+
+@app.get("/user/info",summary="验证 JWT token，如果验证成功，返回用户名", tags=["sys-login-user"])
+def protected(token):
+    """
+    验证 JWT token，如果验证成功，返回用户名
+    """
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        username = payload.get('username')
+        if username:
+            data = {
+                'code': 20000,
+                'message': 'Login User Success',
+                'data': {
+                    "roles": ["admin"],
+                    "name": "Super Admin",
+                    'avatar': 'https://wpimg.wallstcn.com/f778738c-e4f8-4870-b634-56703b4acafe.gif',
+                    "introduction": "I am a super administrator",
+                }
+            }
+            return data
+        else:
+            # JWT 验证失败
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except jwt.ExpiredSignatureError:
+        # token 过期
+        raise HTTPException(status_code=401, detail="Token expired")
+    except:
+        # JWT 验证失败
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+@app.post("/user/logout", summary="get logout user to  jwt token ", tags=["sys-login-user"])
+def logout():
+    data = {
+        'code': 20000,
+        'message': 'Logged out successfully!',
+        'data': {},
+    }
+    return data
 
 if __name__ == "__main__":
     setup_logging(log_file_path="fastapi.log", project_root="./logs", message="startup fastapi")

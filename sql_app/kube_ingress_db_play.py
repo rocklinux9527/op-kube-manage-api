@@ -134,17 +134,17 @@ def query_kube_ingres(page, page_size, env, cluster_name, namespace, ingress_nam
             if condition[0]:
                 if isinstance(condition[1], list):
                     result_data = condition[1][(page - 1) * page_size:page * page_size]
-                    return {"code": 0, "total": len(condition[1]), "data": jsonable_encoder(result_data),
+                    return {"code": 20000, "total": len(condition[1]), "data": jsonable_encoder(result_data),
                             "messages": "query data success", "status": True, "columns": k8sIngressHeader}
                 else:
-                    return {"code": 0, "data": condition[1]}
+                    return {"code": 50000, "data": condition[1]}
         result_data = data.limit(page_size).offset((page - 1) * page_size).all()
-        return {"code": 0, "total": len(data.all()), "data": jsonable_encoder(result_data),
+        return {"code": 20000, "total": len(data.all()), "data": jsonable_encoder(result_data),
                 "messages": "query data success", "status": True,"columns": k8sIngressHeader}
     except Exception as e:
         session.rollback()
         setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
-        return {"code": 1, "total": 0, "data": "query data failure ", "messages": str(e), "status": True}
+        return {"code": 50000, "total": 0, "data": "query data failure ", "messages": str(e), "status": True}
     finally:
         session.close()
 

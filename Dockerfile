@@ -1,6 +1,6 @@
 FROM python:3.7.0 As builder
 COPY requirements.txt .
-RUN  pip install --upgrade pip && pip install  -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
+RUN  pip install passlib -i https://mirrors.aliyun.com/pypi/simple/ &&  pip install nacos-sdk-python -i https://mirrors.aliyun.com/pypi/simple/ && pip install --upgrade pip  -i https://mirrors.aliyun.com/pypi/simple/ && pip install  -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
 FROM python:3.7.0-alpine3.7
 COPY --from=builder /usr/local/lib/python3.7/site-packages /usr/local/lib/python3.7/site-packages
 #Set System TimeZone

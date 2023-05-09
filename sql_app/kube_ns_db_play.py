@@ -55,11 +55,11 @@ def query_ns(page: int = 1, page_size: int = 10):
     try:
         data = query.limit(page_size).offset((page - 1) * page_size).all()
         total = query.count()
-        return {"code": 0, "total": total, "data": jsonable_encoder(data), "messages": "query success", "status": True,
+        return {"code": 20000, "total": total, "data": jsonable_encoder(data), "messages": "query success", "status": True,
                 "columns": k8sNameSpaceHeader}
     except Exception as e:
         setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
-        return {"code": 0, "total": 0, "data": "query data failure", "messages": str(e), "status": True,
+        return {"code": 50000, "total": 0, "data": "query data failure", "messages": str(e), "status": True,
                 "columns": k8sNameSpaceHeader}
     finally:
         session.commit()
@@ -96,10 +96,10 @@ def query_kube_db_ns_all():
         session = SessionLocal()
         query = session.query(DeployNsData.ns_name).distinct().all()
         namespaceList = [row[0] for row in query]
-        return {"code": 0, "total": len(namespaceList), "data": namespaceList, "messages": "query data ns success", "status": True}
+        return {"code": 20000, "total": len(namespaceList), "data": namespaceList, "messages": "query data ns success", "status": True}
     except Exception as e:
         setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
-        return {"code": 1, "total": 0, "data": [], "messages": f"Error occured: {str(e)}", "status": False}
+        return {"code": 50000, "total": 0, "data": [], "messages": f"Error occured: {str(e)}", "status": False}
     finally:
         session.commit()
         session.close()

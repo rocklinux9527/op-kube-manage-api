@@ -46,7 +46,7 @@ class K8sNamespaceManager:
         try:
             self.v1.create_namespace(body)
             return {
-                "code": 0,
+                "code": 20000,
                 "messages": "success",
                 "data": f"Namespace {name} created successfully",
                 "status": True
@@ -56,7 +56,7 @@ class K8sNamespaceManager:
             status = getattr(e, "status")
             if status == 409:
                 msg = "Create {name} namespace failure  namespace exist".format(name=name)
-                return {"code": 1, "messages": msg, "data": "", "status": False}
+                return {"code": 50000, "messages": msg, "data": "", "status": False}
 
 # class k8sNameSpaceManager:
 #     def __init__(self, clint_config_file):

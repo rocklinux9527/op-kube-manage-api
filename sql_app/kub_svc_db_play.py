@@ -138,17 +138,17 @@ def query_kube_svc(page, page_size, env=None, cluster_name=None, namespace=None,
         if page and page_size:
             total_count = data.count()
             result_data = data.limit(page_size).offset((page - 1) * page_size).all()
-            return {"code": 0, "total": total_count, "data": jsonable_encoder(result_data),
+            return {"code": 20000, "total": total_count, "data": jsonable_encoder(result_data),
                     "messages": "query data success", "status": True, "columns": k8sServiceHeader}
         # 否则返回所有数据
         else:
-            return {"code": 0, "total": len([i.to_dict for i in data]), "data": jsonable_encoder(data.all()),
+            return {"code": 20000, "total": len([i.to_dict for i in data]), "data": jsonable_encoder(data.all()),
                     "messages": "query data success", "status": True, "columns": k8sServiceHeader}
     except Exception as e:
         print(e)
         session.commit()
         session.close()
-        return {"code": 0, "total": 0,"data": [i.to_dict for i in data], "messages": "query success", "status": True, "columns": k8sServiceHeader}
+        return {"code": 50000, "total": 0,"data": [i.to_dict for i in data], "messages": "query success", "status": True, "columns": k8sServiceHeader}
 
 def query_kube_svc_by_name(env_name, cluster_name, svc_name, namespace_name):
     session = SessionLocal()
@@ -196,9 +196,9 @@ def query_kube_all_svc_name(env_name:str, cluster_name:str, namespace_name:str) 
         svc_list = [result[0] for result in results]
 
     if env_name and cluster_name and svc_list:
-        return {"code": 0, "data": svc_list, "status": True, "messages": "query svc-name all success"}
+        return {"code": 20000, "data": svc_list, "status": True, "messages": "query svc-name all success"}
     else:
-        return {"code": 1, "data": "", "status": False,  "messages": "query svc-name all failed"}
+        return {"code": 50000, "data": "", "status": False,  "messages": "query svc-name all failed"}
 
 
 def query_kube_all_svc_port(env_name:str, cluster_name:str, namespace_name:str, svc_name:str ) -> dict:
@@ -222,6 +222,6 @@ def query_kube_all_svc_port(env_name:str, cluster_name:str, namespace_name:str, 
         port_list = [result[0] for result in results]
 
     if env_name and cluster_name and port_list:
-        return {"code": 0, "data": port_list, "status": True, "messages": "query svc-port all success"}
+        return {"code": 20000, "data": port_list, "status": True, "messages": "query svc-port all success"}
     else:
-        return {"code": 1, "data": "", "status": False,  "messages": "query svc-port all failed"}
+        return {"code": 50000, "data": "", "status": False,  "messages": "query svc-port all failed"}

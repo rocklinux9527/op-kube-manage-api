@@ -125,10 +125,10 @@ def query_kube_config(page: int = 1, page_size: int = 10, env: Optional[str] = N
             query = query.filter(KubeK8sConfig.client_key_path == client_key_path)
         data = query.limit(page_size).offset((page-1)*page_size).all()
         total = query.count()
-        return {"code": 0, "total": total, "data": jsonable_encoder(data), "messages": "query data success", "status": True, "columns": k8sClusterHeader}
+        return {"code": 20000, "total": total, "data": jsonable_encoder(data), "messages": "query data success", "status": True, "columns": k8sClusterHeader}
     except Exception as e:
         setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
-        return {"code": 1, "total": 0, "data": "query data failure ", "messages": str(e), "status": True, "columns": k8sClusterHeader}
+        return {"code": 50000, "total": 0, "data": "query data failure ", "messages": str(e), "status": True, "columns": k8sClusterHeader}
 
 def query_kube_db_env_cluster_all(env, cluster_name):
     """
@@ -152,20 +152,20 @@ def query_kube_db_env_all():
         session = SessionLocal()
         query = session.query(KubeK8sConfig.env).distinct().all()
         envList = [row[0] for row in query]
-        return {"code": 0, "total": len(envList), "data": envList, "messages": "query data success", "status": True}
+        return {"code": 20000, "total": len(envList), "data": envList, "messages": "query data success", "status": True}
     except Exception as e:
         setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
-        return {"code": 1, "total": 0, "data": [], "messages": f"Error occured: {str(e)}", "status": False}
+        return {"code": 50000, "total": 0, "data": [], "messages": f"Error occured: {str(e)}", "status": False}
 
 def query_kube_db_cluster_all():
     try:
         session = SessionLocal()
         query = session.query(KubeK8sConfig.cluster_name).distinct().all()
         clusterList = [row[0] for row in query]
-        return {"code": 0, "total": len(clusterList), "data": clusterList, "messages": "query data success", "status": True}
+        return {"code": 20000, "total": len(clusterList), "data": clusterList, "messages": "query data success", "status": True}
     except Exception as e:
         setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
-        return {"code": 1, "total": 0, "data": [], "messages": f"Error occured: {str(e)}", "status": False}
+        return {"code": 50000, "total": 0, "data": [], "messages": f"Error occured: {str(e)}", "status": False}
 
 def query_kube_db_env_cluster_wrapper():
     def decorator(func):

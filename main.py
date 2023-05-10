@@ -70,7 +70,7 @@ app = FastAPI(
 )
 router = APIRouter()
 
-origins = ["http://192.168.0.8:9527"]
+origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,

@@ -38,6 +38,24 @@ k8sNameSpaceHeader = [
     {"name": "create_time", "alias": "创建时间"}
 ]
 
+# K8S Pod 前端显示表头
+k8sPodHeader = [
+    {"name": "pod_name", "alias": "Pod名称"},
+    {"name": "host_ip", "alias": "宿主机"},
+    {"name": "pod_ip", "alias": "PodIP"},
+    {"name": "ports", "alias": "端口"},
+    {"name": "pod_status", "alias": "Pod状态"},
+    # {"name": "qos", "alias": "级别"},
+    {"name": "image", "alias": "镜像地址"},
+    {"name": "ready_count", "alias": "Read数"},
+    # {"name": "pod_error_reasons", "alias": "错误"},
+    {"name": "start_time", "alias": "开始时间"},
+    {"name": "restarts", "alias": "重启次数"},
+    {"name": "uptime_str", "alias": "运行时长"}
+]
+
+
+
 # K8S deploy 前端显示表头
 k8sDeployHeader = [
     {"name": "app_name", "alias": "应用名称"},

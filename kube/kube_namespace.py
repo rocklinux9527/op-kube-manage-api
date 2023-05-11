@@ -22,7 +22,7 @@ class K8sNamespaceManager:
         try:
             namespaces = [ns.metadata.name for ns in self.v1.list_namespace().items]
             return {
-                "code": 0,
+                "code": 20000,
                 "messages": "Query successful",
                 "data": namespaces,
                 "status": True

@@ -19,6 +19,9 @@ from kube.kube_deployment import k8sDeploymentManager
 from kube.kube_namespace import K8sNamespaceManager
 from kube.kube_service import K8sServiceManager
 
+# pod
+from kube.kube_pod import PodManager
+
 # db ops deploy and kube config
 from sql_app.models import DeployK8sData
 from sqlalchemy.orm import sessionmaker, query, Session
@@ -228,12 +231,13 @@ class createNameSpace(BaseModel):
 
 
 @app.get("/v1/sys/k8s/ns/plan/", summary="Get namespace App Plan", tags=["NamespaceKubernetes"])
-def get_namespace_plan(env_name: Optional[str], cluster_name: Optional[str]):
-    if not (env_name and cluster_name):
+def get_namespace_plan(env: Optional[str], cluster_name: Optional[str]):
+    cluster = cluster_name
+    if not (env and cluster):
         raise HTTPException(status_code=400, detail="If the parameter is insufficient, check it")
-    cluster_info = query_kube_db_env_cluster_all(env_name, cluster_name)
+    cluster_info = query_kube_db_env_cluster_all(env, cluster)
     if not (cluster_info.get("data")):
-        raise HTTPException(status_code=400, detail=f"环境:{env_name}  集群:{cluster_name}  不存在请提前配置集群和环境")
+        raise HTTPException(status_code=400, detail=f"环境:{env}  集群:{cluster}  不存在请提前配置集群和环境")
 
     for client_path in cluster_info.get("data"):
         if not (client_path.get("client_key_path")):
@@ -277,7 +281,6 @@ async def post_namespace_plan(request: Request, request_data: createNameSpace):
         return {"code": 1, "data": msg, "message": "Namespace_info Record already exists", "status": True}
     else:
         for client_path in cluster_info.get("data"):
-
             if not (client_path.get("client_key_path")):
                 raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
             insert_ns_instance = K8sNamespaceManager(client_path.get("client_key_path"))
@@ -344,6 +347,111 @@ class loginUser(BaseModel):
     username: str
     password: str
 
+@app.get("/v1/kube/pod/", summary="get Pod k8s Plan", tags=["PodKubernetes"])
+def get_kube_pod(env: Optional[str], cluster_name: Optional[str], namespace: Optional[str]):
+    if not (env and cluster_name and namespace):
+        raise HTTPException(status_code=400, detail="The cluster or environment does not exist")
+    cluster_info = query_kube_db_env_cluster_all(env, cluster_name)
+    for client_path in cluster_info.get("data"):
+        if not (client_path.get("client_key_path")):
+            raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
+        pod_instance = PodManager(client_path.get("client_key_path"), namespace)
+        return pod_instance.get_pods()
+
+
+@app.post("/v1/kube/pod/restart", summary="get Pod Restart k8s Plan", tags=["PodKubernetes"])
+def get_kube_pod_restart(env: Optional[str], cluster_name: Optional[str], namespace: Optional[str], pod_name=Optional[str]):
+    if not (env and cluster_name and namespace and pod_name):
+        raise HTTPException(status_code=400, detail="The cluster or environment does not exist")
+    cluster_info = query_kube_db_env_cluster_all(env, cluster_name)
+    for client_path in cluster_info.get("data"):
+        if not (client_path.get("client_key_path")):
+            raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
+        pod_instance = PodManager(client_path.get("client_key_path"), namespace)
+        return pod_instance.restart_pod(pod_name)
+
+
+@app.get("/v1/kube/pod/mock", summary="get Pod Mock k8s Plan", tags=["PodKubernetes"])
+def get_kube_mock_pod():
+    from tools.config import k8sPodHeader
+    return {"code": 20000, "total": 0, "data": [], "messages": "query data success", "status": True, "columns": k8sPodHeader}
+
+@app.post("/v1/kube/pod/", summary="Add POD K8S Plan", tags=["PodKubernetes"])
+async def create_kube_pod(request: Request, request_data: KubeConfig):
+    from sql_app.models import KubeK8sConfig
+    data = request_data.dict()
+    if not all(data.get(field) for field in
+               ['env', 'cluster_name', 'server_address', 'ca_data', 'client_crt_data', 'client_key_data']):
+        return {'code': 20000, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    session = SessionLocal()
+    result_app_name = session.query(KubeK8sConfig).filter_by(env=data.get("env"),
+                                                             cluster_name=data.get('cluster_name')).first()
+    if result_app_name:
+        msg = f'cluster_info 环境:{data["env"]} 集群名称:{data["cluster_name"]} existing 提示: 已经存在,不允许覆盖操作!'
+        return {"code": 20000, "data": msg, "message": "cluster_info Record already exists", "status": True}
+    result = add_kube_config(*data.values())
+    if result.get("code") != 0:
+        return {"code": 50000, "messages": "create kube config failure ", "status": True, "data": "failure"}
+
+    result_key_path = get_key_file_path(data['env'], data['cluster_name'])
+    if not result_key_path:
+        return {"code": 50000, "messages": "create kube config file path failure ", "status": True, "data": "failure"}
+
+    insertInstance = insert_kube_config(*data.values(), result_key_path)
+    user_request_data = await request.json()
+    insert_ops_bot_log("Insert kube config", json.dumps(user_request_data), "post", json.dumps(insertInstance))
+    return insertInstance
+
+
+@app.put("/v1/kube/pod/", summary="Put POD K8S Plan", tags=["PodKubernetes"])
+async def update_kube_POD(ReQuest: Request, request_data: updateKubeConfig):
+    item_dict = request_data.dict()
+    userRequestData = await ReQuest.json()
+    db_kube_config = query_kube_config_id(item_dict.get('id'))
+    if not (db_kube_config.get("data")):
+        raise HTTPException(status_code=404, detail="KubeConfig not found")
+    request_data = request_data.dict(exclude_unset=True)
+    result = add_kube_config(request_data['env'], request_data['cluster_name'], request_data['server_address'],
+                             request_data['ca_data'], request_data['client_crt_data'], request_data['client_key_data'])
+    if result.get("code") == 0:
+        db_kube_config = updata_kube_config(item_dict.get("id"), item_dict.get("env"), item_dict.get("cluster_name"),
+                                            item_dict.get("server_address"),
+                                            item_dict.get("ca_data"), item_dict.get("client_crt_data"),
+                                            item_dict.get("client_key_data"), item_dict.get("client_key_path"))
+        insert_ops_bot_log("Update kube config", json.dumps(userRequestData), "put", json.dumps(db_kube_config))
+        return db_kube_config
+    else:
+        raise HTTPException(status_code=400, detail='update kube config failure')
+
+
+@app.delete("/v1/kube/pod/", summary="Delete POD K8S Plan", tags=["PodKubernetes"])
+async def delete_kube_pod_v1(ReQuest: Request, request_data: deleteKubeConfig):
+    import asyncio
+    item_dict = request_data.dict()
+    userRequestData = await ReQuest.json()
+    db_kube_config = query_kube_config_id(item_dict.get('id'))
+    if not (db_kube_config.get("data")):
+        raise HTTPException(status_code=404, detail="KubeConfig not found")
+    env = item_dict.get("env")
+    cluster_name = item_dict.get('cluster_name')
+    if not env or not cluster_name:
+        return {"code": 50000, "messages": "Delete kube config failure, incorrect parameters", "status": True,
+                "data": "failure"}
+    file_name = f"{env}_{cluster_name}.conf"
+    try:
+        result_data = await asyncio.gather(delete_kubeconfig_file(file_name))
+        for result in result_data:
+            if result["code"] != 0:
+                return {"code": 50000, "messages": "Delete kube config failure 集群配置文件不存在", "status": True,
+                        "data": "failure"}
+            delete_instance = delete_kube_config(item_dict.get('id'))
+            insert_ops_bot_log("Delete kube config", json.dumps(userRequestData), "delete", json.dumps(delete_instance))
+            return delete_instance
+    except Exception as e:
+        print(str(e))
+        return {"code": 50000, "messages": str(e), "status": True, "data": "failure"}
+
 
 def generate_deployment_id():
     current_date = datetime.datetime.now().strftime("%Y%m%d")
@@ -392,15 +500,6 @@ async def post_deploy_plan(request: Request, request_data: CreateDeployK8S) -> D
         else:
             raise HTTPException(status_code=400, detail="deploy_env must be a string or dictionary")
 
-    # deploy_env = data.get("deploy_env")
-        # deploy_env_dict = {}
-        # try:
-        #     for env in deploy_env.split(","):
-        #         k, v = env.split("=")
-        #         deploy_env_dict[k] = v
-        # except Exception as e:
-        #     raise HTTPException(status_code=400,
-        #                         detail="Failed to create Deployment  because the deploy env format is incorrect")
         insert_deploy_instance = k8sDeploymentManager(client_path.get("client_key_path"), data.get('namespace'))
         insert_result_data = insert_deploy_instance.create_kube_deployment(
             data.get('namespace'), data.get("app_name"), data.get("resources"), data.get("replicas"),

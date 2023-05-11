@@ -97,7 +97,9 @@ class k8sDeploymentManager:
                                 containers=[client.V1Container(
                                     name=deployment_name,
                                     image=image,
-                                    ports=[client.V1ContainerPort(container_port=container_port)],
+                                    ports=[client.V1ContainerPort(
+                                        name=deployment_name,
+                                        container_port=container_port)],
                                     env=[client.V1EnvVar(name=key, value=value) for key, value in env_vars.items()],
                                     resources=resources
                                 )]
@@ -111,7 +113,9 @@ class k8sDeploymentManager:
                     name=deployment_name,
                     image=image,
                     resources=resources,
-                    ports=[client.V1ContainerPort(container_port=container_port)],
+                    ports=[client.V1ContainerPort(
+                        name=deployment_name,
+                        container_port=container_port)],
                     liveness_probe=client.V1Probe(
                         http_get=client.V1HTTPGetAction(
                             path=health_liven_ess,

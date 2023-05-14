@@ -45,10 +45,10 @@ k8sPodHeader = [
     {"name": "pod_ip", "alias": "PodIP"},
     {"name": "ports", "alias": "端口"},
     {"name": "pod_status", "alias": "Pod状态"},
-    # {"name": "qos", "alias": "级别"},
+    {"name": "qos", "alias": "级别"},
     {"name": "image", "alias": "镜像地址"},
     {"name": "ready_count", "alias": "Read数"},
-    # {"name": "pod_error_reasons", "alias": "错误"},
+    {"name": "pod_error_reasons", "alias": "错误详细"},
     {"name": "start_time", "alias": "开始时间"},
     {"name": "restarts", "alias": "重启次数"},
     {"name": "uptime_str", "alias": "运行时长"}

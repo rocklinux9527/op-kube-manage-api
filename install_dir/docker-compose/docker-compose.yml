@@ -18,7 +18,7 @@ services:
       retries: 20
 
   op-kube-manage-api:
-    image: breaklinux/op-kube-manage-api:v1
+    image: breaklinux/op-kube-manage-api:v1.0
     container_name: op-kube-manage-api
     restart: always
     ports:

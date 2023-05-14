@@ -231,8 +231,7 @@ class createNameSpace(BaseModel):
 
 
 @app.get("/v1/sys/k8s/ns/plan/", summary="Get namespace App Plan", tags=["NamespaceKubernetes"])
-def get_namespace_plan(env: Optional[str], cluster_name: Optional[str]):
-    cluster = cluster_name
+def get_namespace_plan(env: Optional[str], cluster: Optional[str]):
     if not (env and cluster):
         raise HTTPException(status_code=400, detail="If the parameter is insufficient, check it")
     cluster_info = query_kube_db_env_cluster_all(env, cluster)
@@ -347,23 +346,51 @@ class loginUser(BaseModel):
     username: str
     password: str
 
+class postK8sRestartPodManager(BaseModel):
+    env: str
+    cluster: str
+    namespace: str
+    pod_name: str
+
+class postK8sPodManager(BaseModel):
+    env: str
+    cluster: str
+    namespace: str
+    pod_name: str
+    ports: int
+    image: str
+
+class putK8sPodManager(BaseModel):
+    env: str
+    cluster: str
+    namespace: str
+    pod_name: str
+    ports: int
+    image: str
+
 @app.get("/v1/kube/pod/", summary="get Pod k8s Plan", tags=["PodKubernetes"])
-def get_kube_pod(env: Optional[str], cluster_name: Optional[str], namespace: Optional[str]):
-    if not (env and cluster_name and namespace):
+def get_kube_pod(env: Optional[str], cluster: Optional[str], namespace: Optional[str]):
+    if not (env and cluster and namespace):
         raise HTTPException(status_code=400, detail="The cluster or environment does not exist")
-    cluster_info = query_kube_db_env_cluster_all(env, cluster_name)
+    cluster_info = query_kube_db_env_cluster_all(env, cluster)
     for client_path in cluster_info.get("data"):
         if not (client_path.get("client_key_path")):
             raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
         pod_instance = PodManager(client_path.get("client_key_path"), namespace)
-        return pod_instance.get_pods()
+        return pod_instance.get_pods(env, cluster)
 
 
-@app.post("/v1/kube/pod/restart", summary="get Pod Restart k8s Plan", tags=["PodKubernetes"])
-def get_kube_pod_restart(env: Optional[str], cluster_name: Optional[str], namespace: Optional[str], pod_name=Optional[str]):
-    if not (env and cluster_name and namespace and pod_name):
+@app.post("/v1/kube/pod/restart", summary="POST Pod Restart k8s Plan", tags=["PodKubernetes"])
+def get_kube_pod_restart(request: Request, request_data: postK8sRestartPodManager):
+    data = request_data.dict()
+    env = data.get("env")
+    cluster = data.get("cluster")
+    namespace = data.get("namespace")
+    pod_name = data.get("pod_name")
+
+    if not (env and cluster and namespace and pod_name):
         raise HTTPException(status_code=400, detail="The cluster or environment does not exist")
-    cluster_info = query_kube_db_env_cluster_all(env, cluster_name)
+    cluster_info = query_kube_db_env_cluster_all(env, cluster)
     for client_path in cluster_info.get("data"):
         if not (client_path.get("client_key_path")):
             raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
@@ -377,53 +404,43 @@ def get_kube_mock_pod():
     return {"code": 20000, "total": 0, "data": [], "messages": "query data success", "status": True, "columns": k8sPodHeader}
 
 @app.post("/v1/kube/pod/", summary="Add POD K8S Plan", tags=["PodKubernetes"])
-async def create_kube_pod(request: Request, request_data: KubeConfig):
-    from sql_app.models import KubeK8sConfig
+async def create_kube_pod(request: Request, request_data: postK8sPodManager):
     data = request_data.dict()
     if not all(data.get(field) for field in
-               ['env', 'cluster_name', 'server_address', 'ca_data', 'client_crt_data', 'client_key_data']):
+               ['env', 'cluster', 'namespace', 'pod_name', 'image', 'ports']):
         return {'code': 20000, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    session = SessionLocal()
-    result_app_name = session.query(KubeK8sConfig).filter_by(env=data.get("env"),
-                                                             cluster_name=data.get('cluster_name')).first()
-    if result_app_name:
-        msg = f'cluster_info 环境:{data["env"]} 集群名称:{data["cluster_name"]} existing 提示: 已经存在,不允许覆盖操作!'
-        return {"code": 20000, "data": msg, "message": "cluster_info Record already exists", "status": True}
-    result = add_kube_config(*data.values())
-    if result.get("code") != 0:
-        return {"code": 50000, "messages": "create kube config failure ", "status": True, "data": "failure"}
-
-    result_key_path = get_key_file_path(data['env'], data['cluster_name'])
-    if not result_key_path:
-        return {"code": 50000, "messages": "create kube config file path failure ", "status": True, "data": "failure"}
-
-    insertInstance = insert_kube_config(*data.values(), result_key_path)
-    user_request_data = await request.json()
-    insert_ops_bot_log("Insert kube config", json.dumps(user_request_data), "post", json.dumps(insertInstance))
-    return insertInstance
+    env = data.get("env")
+    cluster = data.get("cluster")
+    container_port = data.get("ports")
+    container_image = data.get("image")
+    pod_name = data.get("pod_name")
+    namespace_name = data.get("namespace")
+    cluster_info = query_kube_db_env_cluster_all(env, cluster)
+    for client_path in cluster_info.get("data"):
+        if not (client_path.get("client_key_path")):
+            raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
+        pod_instance = PodManager(client_path.get("client_key_path"), namespace_name)
+        return pod_instance.create_pod(pod_name, container_image, container_port)
 
 
 @app.put("/v1/kube/pod/", summary="Put POD K8S Plan", tags=["PodKubernetes"])
-async def update_kube_POD(ReQuest: Request, request_data: updateKubeConfig):
-    item_dict = request_data.dict()
-    userRequestData = await ReQuest.json()
-    db_kube_config = query_kube_config_id(item_dict.get('id'))
-    if not (db_kube_config.get("data")):
-        raise HTTPException(status_code=404, detail="KubeConfig not found")
-    request_data = request_data.dict(exclude_unset=True)
-    result = add_kube_config(request_data['env'], request_data['cluster_name'], request_data['server_address'],
-                             request_data['ca_data'], request_data['client_crt_data'], request_data['client_key_data'])
-    if result.get("code") == 0:
-        db_kube_config = updata_kube_config(item_dict.get("id"), item_dict.get("env"), item_dict.get("cluster_name"),
-                                            item_dict.get("server_address"),
-                                            item_dict.get("ca_data"), item_dict.get("client_crt_data"),
-                                            item_dict.get("client_key_data"), item_dict.get("client_key_path"))
-        insert_ops_bot_log("Update kube config", json.dumps(userRequestData), "put", json.dumps(db_kube_config))
-        return db_kube_config
-    else:
-        raise HTTPException(status_code=400, detail='update kube config failure')
-
+def update_kube_Pod(ReQuest: Request, request_data: putK8sPodManager):
+    data = request_data.dict()
+    if not all(data.get(field) for field in
+               ['env', 'cluster', 'namespace', 'pod_name', 'image', 'ports']):
+        return {'code': 20000, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
+    env = data.get("env")
+    cluster = data.get("cluster")
+    container_port = data.get("ports")
+    container_image = data.get("image")
+    pod_name = data.get("pod_name")
+    namespace_name = data.get("namespace")
+    cluster_info = query_kube_db_env_cluster_all(env, cluster)
+    for client_path in cluster_info.get("data"):
+        if not (client_path.get("client_key_path")):
+            raise HTTPException(status_code=400, detail="获取集群 client path  failure, 请检查问题")
+        pod_instance = PodManager(client_path.get("client_key_path"), namespace_name)
+        return pod_instance.update_pod(pod_name, container_image)
 
 @app.delete("/v1/kube/pod/", summary="Delete POD K8S Plan", tags=["PodKubernetes"])
 async def delete_kube_pod_v1(ReQuest: Request, request_data: deleteKubeConfig):

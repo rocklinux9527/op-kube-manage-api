@@ -8,7 +8,7 @@ os.sys.path.append(script_path)
 os.sys.path.append(conf_path)
 import asyncio
 import os
-from tools.nacosGet import getNacosInfo
+#from tools.nacosGet import getNacosInfo
 
 
 def getNacos_key(cluster, keyName):

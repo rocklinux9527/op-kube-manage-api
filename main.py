@@ -56,6 +56,10 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from passlib.hash import ldap_salted_sha1
 
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+# user manager
+
+from sql_app.login_users import insert_db_users, delete_db_users, query_users,query_users_name,updata_users
 # login token
 import jwt
 import datetime
@@ -346,11 +350,13 @@ class loginUser(BaseModel):
     username: str
     password: str
 
+
 class postK8sRestartPodManager(BaseModel):
     env: str
     cluster: str
     namespace: str
     pod_name: str
+
 
 class postK8sPodManager(BaseModel):
     env: str
@@ -360,6 +366,7 @@ class postK8sPodManager(BaseModel):
     ports: int
     image: str
 
+
 class putK8sPodManager(BaseModel):
     env: str
     cluster: str
@@ -367,6 +374,7 @@ class putK8sPodManager(BaseModel):
     pod_name: str
     ports: int
     image: str
+
 
 @app.get("/v1/kube/pod/", summary="get Pod k8s Plan", tags=["PodKubernetes"])
 def get_kube_pod(env: Optional[str], cluster: Optional[str], namespace: Optional[str]):
@@ -402,6 +410,7 @@ def get_kube_pod_restart(request: Request, request_data: postK8sRestartPodManage
 def get_kube_mock_pod():
     from tools.config import k8sPodHeader
     return {"code": 20000, "total": 0, "data": [], "messages": "query data success", "status": True, "columns": k8sPodHeader}
+
 
 @app.post("/v1/kube/pod/", summary="Add POD K8S Plan", tags=["PodKubernetes"])
 async def create_kube_pod(request: Request, request_data: postK8sPodManager):
@@ -442,33 +451,6 @@ def update_kube_Pod(ReQuest: Request, request_data: putK8sPodManager):
         pod_instance = PodManager(client_path.get("client_key_path"), namespace_name)
         return pod_instance.update_pod(pod_name, container_image)
 
-@app.delete("/v1/kube/pod/", summary="Delete POD K8S Plan", tags=["PodKubernetes"])
-async def delete_kube_pod_v1(ReQuest: Request, request_data: deleteKubeConfig):
-    import asyncio
-    item_dict = request_data.dict()
-    userRequestData = await ReQuest.json()
-    db_kube_config = query_kube_config_id(item_dict.get('id'))
-    if not (db_kube_config.get("data")):
-        raise HTTPException(status_code=404, detail="KubeConfig not found")
-    env = item_dict.get("env")
-    cluster_name = item_dict.get('cluster_name')
-    if not env or not cluster_name:
-        return {"code": 50000, "messages": "Delete kube config failure, incorrect parameters", "status": True,
-                "data": "failure"}
-    file_name = f"{env}_{cluster_name}.conf"
-    try:
-        result_data = await asyncio.gather(delete_kubeconfig_file(file_name))
-        for result in result_data:
-            if result["code"] != 0:
-                return {"code": 50000, "messages": "Delete kube config failure 集群配置文件不存在", "status": True,
-                        "data": "failure"}
-            delete_instance = delete_kube_config(item_dict.get('id'))
-            insert_ops_bot_log("Delete kube config", json.dumps(userRequestData), "delete", json.dumps(delete_instance))
-            return delete_instance
-    except Exception as e:
-        print(str(e))
-        return {"code": 50000, "messages": str(e), "status": True, "data": "failure"}
-
 
 def generate_deployment_id():
     current_date = datetime.datetime.now().strftime("%Y%m%d")
@@ -507,13 +489,13 @@ async def post_deploy_plan(request: Request, request_data: CreateDeployK8S) -> D
         if isinstance(deploy_env, str):
             try:
                 deploy_env_dict = dict(kv.split('=') for kv in deploy_env.split(','))
-                print("==",deploy_env_dict)
+                print("==", deploy_env_dict)
             except ValueError:
                 deploy_env_dict = {deploy_env.split('=')[0]: deploy_env.split('=')[1]}
-                print("one",deploy_env_dict)
+                print("one", deploy_env_dict)
         elif isinstance(deploy_env, dict):
             deploy_env_dict = deploy_env
-            print("sss",deploy_env_dict)
+            print("sss", deploy_env_dict)
         else:
             raise HTTPException(status_code=400, detail="deploy_env must be a string or dictionary")
 
@@ -570,10 +552,10 @@ async def put_deploy_plan(request: Request, request_data: UpdateDeployK8S):
     if isinstance(deploy_env, str):
         try:
             deploy_env_dict = dict(kv.split('=') for kv in deploy_env.split(','))
-            print("==",deploy_env_dict)
+            print("==", deploy_env_dict)
         except ValueError:
             deploy_env_dict = {deploy_env.split('=')[0]: deploy_env.split('=')[1]}
-            print("one",deploy_env_dict)
+            print("one", deploy_env_dict)
     elif isinstance(deploy_env, dict):
         deploy_env_dict = deploy_env
     else:
@@ -1077,21 +1059,51 @@ async def websocket_endpoint(websocket: WebSocket, namespace: str, pod_name: str
     await pod_websocket(websocket, namespace, pod_name, "bash")
 
 
+# def authenticate_user(username: str, password: str):
+#     """
+#     认证用户
+#     :param username: 用户名
+#     :param password: 密码
+#     :return: 如果用户认证成功，返回 True，否则返回 False
+#     """
+#     users = {
+#         "admin": ldap_salted_sha1.hash("111111"),
+#         "alice": ldap_salted_sha1.hash("alice_password"),
+#         "bob": ldap_salted_sha1.hash("bob_password"),
+#     }
+#     if username in users:
+#         # 验证密码
+#         if ldap_salted_sha1.verify(password, users[username]):
+#             return True
+#     return False
+
+class UserManager(BaseModel):
+    username: str
+    password: str
+
+class deleteUserManager(BaseModel):
+    id: str
+    username: str
+    password: str
+
+class deleteUser(BaseModel):
+    id: int
+    username: str
+
+
+
 def authenticate_user(username: str, password: str):
     """
-    认证用户
+    数据库认证用户
     :param username: 用户名
     :param password: 密码
     :return: 如果用户认证成功，返回 True，否则返回 False
     """
-    users = {
-        "admin": ldap_salted_sha1.hash("111111"),
-        "alice": ldap_salted_sha1.hash("alice_password"),
-        "bob": ldap_salted_sha1.hash("bob_password"),
-    }
-    if username in users:
-        # 验证密码
-        if ldap_salted_sha1.verify(password, users[username]):
+    from sql_app.models import Users
+    session = SessionLocal()
+    user = session.query(Users).filter(Users.username == username).first()
+    if user:
+        if ldap_salted_sha1.verify(password, user.password_hash):
             return True
     return False
 
@@ -1105,11 +1117,12 @@ def login(request_data: loginUser):
     username = data.get("username")
     password = data.get("password")
     if not authenticate_user(username, password):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid username or password",
-            headers={"WWW-Authenticate": "Basic"},
-        )
+        # raise HTTPException(
+        #     status_code=401,
+        #     detail="Invalid username or password",
+        #     headers={"WWW-Authenticate": "Basic"},
+        # )
+       return {"code": 401, "message": "账号或者密码不正确,请检查!", "statue": True}
     expires = datetime.datetime.utcnow() + datetime.timedelta(hours=8)
     payload = {'username': username, 'exp': expires}
     header = {
@@ -1119,8 +1132,9 @@ def login(request_data: loginUser):
     token = jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM, headers=header)
     # 返回成功信息及 token
     data = {
+        'username': username,
         'code': 20000,
-        'message': 'Login User Success',
+        'message': 'Login {uid} User Success'.format(uid=username),
         'data': {
             'token': token,
             'token_type': 'Bearer'
@@ -1129,7 +1143,7 @@ def login(request_data: loginUser):
     return data
 
 
-@app.get("/user/info",summary="验证 JWT token，如果验证成功，返回用户名", tags=["sys-login-user"])
+@app.get("/user/info", summary="验证 JWT token，如果验证成功，返回用户名", tags=["sys-login-user"])
 def protected(token):
     """
     验证 JWT token，如果验证成功，返回用户名
@@ -1168,6 +1182,78 @@ def logout():
         'data': {},
     }
     return data
+
+
+@app.post("/user/add", summary="add user  ", tags=["sys-users"])
+async def useradd(request: Request, request_data: UserManager):
+    data = request_data.dict()
+    user_request_data = await request.json()
+    if not all(data.get(field) for field in
+               ['username', 'password']):
+        return {'code': 20000, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
+    username = data.get("username")
+    result_username = query_users_name(username)
+    if result_username.get("code") == 20000 and result_username.get("data"):
+        raise HTTPException(status_code=409, detail=f"User {username} already exists,禁止重复用户")
+    password_hash = ldap_salted_sha1.hash(data.get("password"))
+    created_user = insert_db_users(
+        username=username,
+        password_hash=password_hash
+    )
+    if created_user.get("code") == 20000:
+        insert_ops_bot_log("Insert db user success ", json.dumps(user_request_data), "post",
+                           json.dumps(created_user))
+        return created_user
+    else:
+        return created_user
+
+
+@app.get("/user/query", summary="query user", tags=["sys-users"])
+def get_deploy_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000)):
+    result_data = query_users(page, page_size)
+    return result_data
+
+@app.delete("/user/delete", summary="Delete users Plan", tags=["sys-users"])
+async def delete_users(request: Request, request_data: deleteUser):
+    data = request_data.dict()
+    user_request_data = await request.json()
+    id = request_data.id
+    username = request_data.username
+    if not all(data.values()):
+        return {"code": 1, "messages": "Delete Users  failure, Incorrect parameters", "status": True,
+                "data": "failure"}
+    result_username = query_users_name(username)
+    if not result_username.get("data"):
+        raise HTTPException(status_code=409, detail=f"User {username} not exists already,删除失败")
+    delete_instance = delete_db_users(data["id"])
+    if delete_instance.get("code") == 20000:
+        insert_ops_bot_log("Delete Users App", json.dumps(user_request_data), "delete",
+                           json.dumps(delete_instance))
+        return delete_instance
+    else:
+        return delete_instance
+
+@app.put("/user/update", summary="User Update Plan", tags=["sys-users"])
+async def put_user_update(request: Request, request_data: deleteUserManager):
+    data = request_data.dict()
+    user_request_data = await request.json()
+    username = data.get("username")
+    ID = data.get("id")
+    new_password = data.get('password')
+    if not (username and new_password and ID):
+        raise HTTPException(status_code=400, detail="Missing parameter")
+    result_username = query_users_name(username)
+    if not result_username.get("data"):
+        raise HTTPException(status_code=409, detail=f"User {username} not exists already, 更新失败")
+    password_hash = ldap_salted_sha1.hash(new_password)
+    result = updata_users(ID,username, password_hash)
+    if result.get("code") == 20000:
+        insert_ops_bot_log("Update user success", json.dumps(user_request_data), "post", json.dumps(result))
+        return result
+    else:
+       return {"code": 1, "messages": "update users failure", "status": True, "data": "failure"}
+
+
 
 if __name__ == "__main__":
     setup_logging(log_file_path="fastapi.log", project_root="./logs", message="startup fastapi")

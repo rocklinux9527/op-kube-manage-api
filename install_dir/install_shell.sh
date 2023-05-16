@@ -33,6 +33,17 @@ function checkDockerCompose() {
         exit 1
     fi
 }
+
+function add_sys_admin_user()
+{
+url=$1
+curl --location --request POST "${url}/user/add" \
+--header 'Content-Type: application/json' \
+--data-raw '{
+"username": "admin",
+"password": "11111111"
+}'
+}
 function main() {
     url="http://127.0.0.1:8888/"
     code=$(curl -I -m 30 -o /dev/null -s -w %{http_code}"\n" $url | awk -F '/' '{print $1}')
@@ -45,6 +56,7 @@ function main() {
             checkDockerCompose
             code=$(curl -I -m 30 -o /dev/null -s -w %{http_code}"\n" $url | awk -F '/' '{print $1}')
             if [ $code -eq 200 ]; then
+                add_sys_admin_user $url
                 break
             fi
             deploy_attempts=$((deploy_attempts+1))

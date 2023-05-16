@@ -182,6 +182,17 @@ class opsLog(Base):
                 "request": self.request, "response": self.response, "opsmethod": self.opsmethod, "run_time":
                     self.run_time}
 
+class Users(Base):
+    __tablename__ = 'op_kube_manage_users'
+    id = Column(Integer, primary_key=True)
+    username = Column(String(64))
+    password_hash = Column(String(1024), nullable=False)
+    create_time = Column(DateTime, server_default=func.now(), comment="创建操作时间")
+    @property
+    def to_dict(self):
+        return {"id": self.id, "username": self.username,
+                "password_hash": self.password_hash,
+                "create_time": self.create_time}
 
 def init_db():
     from database import engine

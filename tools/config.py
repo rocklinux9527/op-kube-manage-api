@@ -38,6 +38,15 @@ k8sNameSpaceHeader = [
     {"name": "create_time", "alias": "创建时间"}
 ]
 
+# K8S 命名空间 前端显示表头
+usersHeader = [
+    {"name": "id", "alias": "标识"},
+    {"name": "username", "alias": "用户名"},
+    {"name": "password_hash", "alias": "hash密码"},
+    {"name": "create_time", "alias": "创建时间"}
+]
+
+
 # K8S Pod 前端显示表头
 k8sPodHeader = [
     {"name": "pod_name", "alias": "Pod名称"},

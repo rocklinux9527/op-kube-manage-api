@@ -11,6 +11,9 @@ import json
 import random
 import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request
+from starlette.responses import FileResponse
+
+
 from fastapi import Query
 # ops kube func method
 from kube.kube_config import add_kube_config, get_kube_config_content, get_key_file_path, get_kube_config_dir_file, \
@@ -47,6 +50,11 @@ from kube.kube_ingress import k8sIngressManager
 from sql_app.kube_ingress_db_play import insert_db_ingress, updata_db_ingress, delete_db_ingress, query_kube_ingres, \
     query_kube_ingress_by_name, query_kube_ingress_by_id
 
+# temple
+
+from sql_app.ops_template import insert_db_template, updata_template, delete_db_template, query_template, query_Template_name
+from kube.sys_temple import templeContent, public_download,get_file_extension
+import os
 #  k8s install deploy
 
 from kube.kube_deployment import k8sDeploymentManager
@@ -59,7 +67,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # user manager
 
-from sql_app.login_users import insert_db_users, delete_db_users, query_users,query_users_name,updata_users
+from sql_app.login_users import insert_db_users, delete_db_users, query_users, query_users_name, updata_users
 # login token
 import jwt
 import datetime
@@ -1081,15 +1089,16 @@ class UserManager(BaseModel):
     username: str
     password: str
 
+
 class deleteUserManager(BaseModel):
     id: str
     username: str
     password: str
 
+
 class deleteUser(BaseModel):
     id: int
     username: str
-
 
 
 def authenticate_user(username: str, password: str):
@@ -1122,7 +1131,7 @@ def login(request_data: loginUser):
         #     detail="Invalid username or password",
         #     headers={"WWW-Authenticate": "Basic"},
         # )
-       return {"code": 401, "message": "账号或者密码不正确,请检查!", "statue": True}
+        return {"code": 401, "message": "账号或者密码不正确,请检查!", "statue": True}
     expires = datetime.datetime.utcnow() + datetime.timedelta(hours=8)
     payload = {'username': username, 'exp': expires}
     header = {
@@ -1213,6 +1222,7 @@ def get_deploy_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0,
     result_data = query_users(page, page_size)
     return result_data
 
+
 @app.delete("/user/delete", summary="Delete users Plan", tags=["sys-users"])
 async def delete_users(request: Request, request_data: deleteUser):
     data = request_data.dict()
@@ -1233,6 +1243,7 @@ async def delete_users(request: Request, request_data: deleteUser):
     else:
         return delete_instance
 
+
 @app.put("/user/update", summary="User Update Plan", tags=["sys-users"])
 async def put_user_update(request: Request, request_data: deleteUserManager):
     data = request_data.dict()
@@ -1246,13 +1257,151 @@ async def put_user_update(request: Request, request_data: deleteUserManager):
     if not result_username.get("data"):
         raise HTTPException(status_code=409, detail=f"User {username} not exists already, 更新失败")
     password_hash = ldap_salted_sha1.hash(new_password)
-    result = updata_users(ID,username, password_hash)
+    result = updata_users(ID, username, password_hash)
     if result.get("code") == 20000:
         insert_ops_bot_log("Update user success", json.dumps(user_request_data), "post", json.dumps(result))
         return result
     else:
-       return {"code": 1, "messages": "update users failure", "status": True, "data": "failure"}
+        return {"code": 1, "messages": "update users failure", "status": True, "data": "failure"}
 
+
+class templateManager(BaseModel):
+    name: str
+    content: str
+    t_type: str
+    language: str
+    remark: str
+
+
+class UpdateTemplateManager(BaseModel):
+    id: int
+    name: str
+    content: str
+    t_type: int
+    language: str
+    remark: str
+
+
+class deleteTemplateManager(BaseModel):
+    id: str
+    name: str
+
+
+
+@app.get("/api/template", summary="query template", tags=["sys-template"])
+def get_template_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000)):
+    result_data = query_template(page, page_size)
+    return result_data
+
+
+@app.post("/api/template", summary="模板自定义模板", tags=["sys-template"])
+def save_template(request: Request, request_data: templateManager):
+    data = request_data.dict()
+    name = data.get("name")
+    content = data.get("content")
+    type = data.get("t_type")
+    language = data.get("language")
+    remark = data.get("remark")
+    if not (name and content and type and language and remark):
+        raise HTTPException(status_code=400, detail="Missing parameter")
+    resultTemplateName = query_Template_name(name)
+    if resultTemplateName.get("code") == 20000 and resultTemplateName.get("data"):
+        return {"code": 20000, "messages": f"Template {name} already exists,禁止重复", "status": True,
+                "data": "create Template failure"}
+    fileInstance = templeContent(language, content)
+    file_extension = get_file_extension(language)
+    new_name = name + file_extension
+    fileInstanceResult = fileInstance.controller(new_name)
+    if fileInstanceResult.get("code") == 20000:
+        created_temple = insert_db_template(
+            name=new_name,
+            t_type=type,
+            content=content,
+            language=language,
+            remark=remark
+        )
+        return created_temple
+    else:
+       return {"code": 50000, "messages": "create File failure", "status": True, "data": "create File failure" }
+
+
+@app.put("/api/template", summary="Template Update Plan", tags=["sys-template"])
+async def put_temple_update(request: Request, request_data: UpdateTemplateManager):
+    data = request_data.dict()
+    user_request_data = await request.json()
+    name = data.get("name")
+    content = data.get("content")
+    type = data.get("t_type")
+    language = data.get("language")
+    remark = data.get("remark")
+    ID = data.get("id")
+    if not (ID and name and content and type and language and remark):
+        raise HTTPException(status_code=400, detail="Missing parameter")
+    resultTemplateName = query_Template_name(name)
+    if resultTemplateName.get("code") == 20000 and resultTemplateName.get("data"):
+        fileInstance = templeContent(language, content)
+        fileInstanceResult = fileInstance.controller(name=name, op="update")
+        if fileInstanceResult.get("code") != 20000:
+            raise HTTPException(status_code=50000, detail="template  update failure")
+        result = updata_template(ID, name, type, content, language, remark)
+        if result.get("code") == 20000:
+            insert_ops_bot_log("Update Template success", json.dumps(user_request_data), "post", json.dumps(result))
+            return result
+        else:
+            return {"code": 1, "messages": "Update Template failure", "status": True, "data": "failure"}
+    else:
+       raise HTTPException(status_code=50000, detail="template delete failure")
+
+@app.delete("/api/template", summary="Template Delete Plan", tags=["sys-template"])
+async def delete_temple(request: Request, request_data: deleteTemplateManager):
+    data = request_data.dict()
+    user_request_data = await request.json()
+    name = data.get("name")
+    content = data.get("content")
+    language = data.get("language")
+    remark = data.get("remark")
+    ID = data.get("id")
+    if not (ID and name):
+        raise HTTPException(status_code=400, detail="Missing parameter")
+    resultTemplateName = query_Template_name(name)
+    if resultTemplateName.get("code") == 20000 and resultTemplateName.get("data"):
+        fileInstance = templeContent(language, content)
+        fileInstanceResult = fileInstance.controller(name=name, op="delete")
+        if fileInstanceResult.get("code") != 20000:
+            raise HTTPException(status_code=50000, detail="template  delete failure")
+        result = delete_db_template(ID)
+        if result.get("code") == 20000:
+            insert_ops_bot_log("Delete Template success", json.dumps(user_request_data), "post", json.dumps(result))
+            return result
+        else:
+            return {"code": 1, "messages": "Delete Template failure", "status": True, "data": "failure"}
+    else:
+        raise HTTPException(status_code=50000, detail="template delete failure")
+
+
+
+
+@app.get("/api/template/download/", summary="template download  Plan", tags=["sys-template"])
+async def download_file(name: Optional[str], language: Optional[str]):
+    if not (name and language):
+        raise HTTPException(status_code=50000, detail="Missing parameter")
+    base_path = public_download()
+    file_path = os.path.join(base_path, f"{name}")
+    if os.path.exists(file_path):
+        return FileResponse(file_path, filename=name, media_type="application/octet-stream")
+        # return {"code": 20000, "message": "下载链接生成成功", "status": True, "data": generate_download_url(name, language)}
+    else:
+        return {"code": 50000, "message": "文件不存在", "status": True, "data": "ops failure"}
+
+
+
+
+# def generate_download_url(name, language):
+#     base_url = "http://127.0.0.1:8888"  # 替换为实际的基础URL
+#     download_endpoint = "/api/template/download"
+#     name_fix = get_file_extension(language)
+#     query_params = f"name={name}{name_fix}&language={language}"
+#     return f"{base_url}{download_endpoint}/?{query_params}"
 
 
 if __name__ == "__main__":

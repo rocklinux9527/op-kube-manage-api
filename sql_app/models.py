@@ -194,10 +194,23 @@ class Users(Base):
                 "password_hash": self.password_hash,
                 "create_time": self.create_time}
 
-def init_db():
-    from database import engine
-    Base.metadata.create_all(engine)
-
+class Template(Base):
+    __tablename__ = 'op_kube_manage_template'
+    id = Column(Integer, primary_key=True)
+    name = Column(String(64), nullable=False)
+    t_type = Column(String(64), nullable=False)
+    content = Column(Text, nullable=False)
+    language = Column(String(32), nullable=False)
+    remark = Column(String(512), nullable=False)
+    create_time = Column(DateTime, server_default=func.now(), comment="创建操作时间")
+    @property
+    def to_dict(self):
+        return {"id": self.id, "name": self.name,
+                "type": self.t_type,
+                "content": self.content,
+                "language": self.language,
+                "remark": self.remark
+                }
 
 class DeployNsData(Base):
     __tablename__ = "op_kube_manage_ns_data"
@@ -211,6 +224,10 @@ class DeployNsData(Base):
     @property
     def to_dict(self):
         return {"id": self.id,  "env": self.env,  "cluster_name": self.cluster_name, "ns_name": self.ns_name, "used": self.used, "create_time": self.create_time}
+
+def init_db():
+    from database import engine
+    Base.metadata.create_all(engine)
 
 
 if __name__ == "__main__":

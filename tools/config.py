@@ -38,11 +38,23 @@ k8sNameSpaceHeader = [
     {"name": "create_time", "alias": "创建时间"}
 ]
 
-# K8S 命名空间 前端显示表头
+# 系统用户 user 前端显示表头
 usersHeader = [
     {"name": "id", "alias": "标识"},
     {"name": "username", "alias": "用户名"},
     {"name": "password_hash", "alias": "hash密码"},
+    {"name": "create_time", "alias": "创建时间"}
+]
+
+
+# 模板 前端显示表头
+templateHeader = [
+    {"name": "id", "alias": "标识"},
+    {"name": "name", "alias": "名称"},
+    {"name": "t_type", "alias": "类型"},
+    {"name": "content", "alias": "内容"},
+    {"name": "language", "alias": "语言"},
+    {"name": "remark", "alias": "备注"},
     {"name": "create_time", "alias": "创建时间"}
 ]
 

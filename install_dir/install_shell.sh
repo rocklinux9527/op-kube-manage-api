@@ -8,6 +8,18 @@ function cleanDeploy() {
     echo -e "\e[32m 环境清理完毕\e[0m"
 }
 
+
+function add_sys_admin_user()
+{
+url="http://127.0.0.1:8888"
+curl --location --request POST "${url}/user/add" \
+--header 'Content-Type: application/json' \
+--data-raw '{
+"username": "admin",
+"password": "11111111"
+}'
+}
+
 function checkDockerCompose() {
     echo -e "\e[32m 开始检查Docker-compose环境\e[0m"
     checkDockerCompose=$(docker-compose -v | wc -l)
@@ -17,11 +29,12 @@ function checkDockerCompose() {
         docker-compose up -d
         resultDeploy=$(docker-compose ps | grep -E "op-kube-manage-api|op-kube_manage-mysql-5.7|op-kube-manage-ui" | grep "Up" | wc -l)
         if [ $resultDeploy -eq 3 ]; then
-            echo -e "\e[32m 等待2秒,服务table初始化\e[0m"
-            sleep 2
+            echo -e "\e[32m 等待20秒MYSQL就绪,服务table初始化\e[0m"
+            sleep 20
             docker exec -i op-kube-manage-api python /app/op-kube-manage-api/sql_app/models.py
             docker restart op-kube-manage-api
             sleep 3
+            add_sys_admin_user
         else
             echo -e "\e[31m op-kube-manage-api|op-kube_manage-mysql-5.7 |op-kube-manage-ui|容器化服务部署失败啦!\e[0m"
             exit 1
@@ -34,17 +47,8 @@ function checkDockerCompose() {
     fi
 }
 
-function add_sys_admin_user()
+function main()
 {
-url=$1
-curl --location --request POST "${url}/user/add" \
---header 'Content-Type: application/json' \
---data-raw '{
-"username": "admin",
-"password": "11111111"
-}'
-}
-function main() {
     url="http://127.0.0.1:8888/"
     code=$(curl -I -m 30 -o /dev/null -s -w %{http_code}"\n" $url | awk -F '/' '{print $1}')
     if [ $code -eq 200 ]; then
@@ -56,7 +60,6 @@ function main() {
             checkDockerCompose
             code=$(curl -I -m 30 -o /dev/null -s -w %{http_code}"\n" $url | awk -F '/' '{print $1}')
             if [ $code -eq 200 ]; then
-                add_sys_admin_user $url
                 break
             fi
             deploy_attempts=$((deploy_attempts+1))
@@ -90,9 +93,3 @@ case $1 in
         echo -e "\033[32m deploy_op-kube-manage-all\033[0m op-kube-manage-all 环境部署"
         ;;
 esac
-
-
-
-
-
-

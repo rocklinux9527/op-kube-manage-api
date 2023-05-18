@@ -13,7 +13,6 @@ import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.responses import FileResponse
 
-
 from fastapi import Query
 # ops kube func method
 from kube.kube_config import add_kube_config, get_kube_config_content, get_key_file_path, get_kube_config_dir_file, \
@@ -53,7 +52,7 @@ from sql_app.kube_ingress_db_play import insert_db_ingress, updata_db_ingress, d
 # temple
 
 from sql_app.ops_template import insert_db_template, updata_template, delete_db_template, query_template, query_Template_name
-from kube.sys_temple import templeContent, public_download,get_file_extension
+from kube.sys_temple import templeContent, public_download, get_file_extension
 import os
 #  k8s install deploy
 
@@ -68,6 +67,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 # user manager
 
 from sql_app.login_users import insert_db_users, delete_db_users, query_users, query_users_name, updata_users
+
+# harbor image
+
+from tools.harbor_tools_v2 import harbor_main_aio
 # login token
 import jwt
 import datetime
@@ -1287,7 +1290,6 @@ class deleteTemplateManager(BaseModel):
     name: str
 
 
-
 @app.get("/api/template", summary="query template", tags=["sys-template"])
 def get_template_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000)):
     result_data = query_template(page, page_size)
@@ -1322,7 +1324,7 @@ def save_template(request: Request, request_data: templateManager):
         )
         return created_temple
     else:
-       return {"code": 50000, "messages": "create File failure", "status": True, "data": "create File failure" }
+        return {"code": 50000, "messages": "create File failure", "status": True, "data": "create File failure"}
 
 
 @app.put("/api/template", summary="Template Update Plan", tags=["sys-template"])
@@ -1350,7 +1352,8 @@ async def put_temple_update(request: Request, request_data: UpdateTemplateManage
         else:
             return {"code": 1, "messages": "Update Template failure", "status": True, "data": "failure"}
     else:
-       raise HTTPException(status_code=50000, detail="template delete failure")
+        raise HTTPException(status_code=50000, detail="template delete failure")
+
 
 @app.delete("/api/template", summary="Template Delete Plan", tags=["sys-template"])
 async def delete_temple(request: Request, request_data: deleteTemplateManager):
@@ -1379,8 +1382,6 @@ async def delete_temple(request: Request, request_data: deleteTemplateManager):
         raise HTTPException(status_code=50000, detail="template delete failure")
 
 
-
-
 @app.get("/api/template/download/", summary="template download  Plan", tags=["sys-template"])
 async def download_file(name: Optional[str], language: Optional[str]):
     if not (name and language):
@@ -1389,19 +1390,16 @@ async def download_file(name: Optional[str], language: Optional[str]):
     file_path = os.path.join(base_path, f"{name}")
     if os.path.exists(file_path):
         return FileResponse(file_path, filename=name, media_type="application/octet-stream")
-        # return {"code": 20000, "message": "下载链接生成成功", "status": True, "data": generate_download_url(name, language)}
     else:
         return {"code": 50000, "message": "文件不存在", "status": True, "data": "ops failure"}
 
 
-
-
-# def generate_download_url(name, language):
-#     base_url = "http://127.0.0.1:8888"  # 替换为实际的基础URL
-#     download_endpoint = "/api/template/download"
-#     name_fix = get_file_extension(language)
-#     query_params = f"name={name}{name_fix}&language={language}"
-#     return f"{base_url}{download_endpoint}/?{query_params}"
+@app.get("/api/image", summary="images  query", tags=["sys-image"])
+async def queryHarbor(project_name: Optional[str], repo_name: Optional[str], repo_type: Optional[str] = None):
+    if not (project_name and repo_name):
+        raise HTTPException(status_code=50000, detail="Missing parameter")
+    result = await harbor_main_aio(project_name, repo_name)
+    return result
 
 
 if __name__ == "__main__":

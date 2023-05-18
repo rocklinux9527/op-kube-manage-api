@@ -1,0 +1,4 @@
+harbor:
+  base_url: "https://harbor.51-devops.com"
+  username: "admin"
+  password: "Harbor@admin"

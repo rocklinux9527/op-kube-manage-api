@@ -13,6 +13,7 @@ import os
 HERE = os.path.abspath(__file__)
 HOME_DIR = os.path.split(os.path.split(HERE)[0])[0]
 LOG_DIR = os.path.join(HOME_DIR, "logs")
+
 def insert_db_template(name, t_type, content, language, remark):
     """
     1.新增入库参数

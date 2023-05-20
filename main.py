@@ -1,83 +1,85 @@
 # https://github.com/kubernetes-client/python/tree/master/kubernetes/docs
 # from logging
 
-from tools.config import setup_logging
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, WebSocket
-from pydantic import BaseModel
-from typing import List, Optional, Set, Dict, Any
-from starlette.middleware.cors import CORSMiddleware
-import uvicorn
-import json
-import random
 import datetime
-from fastapi import APIRouter, Depends, HTTPException, Request
+import json
+import os
+import random
+from typing import Optional, Dict, Any
+
+# login token
+import jwt
+import uvicorn
+from fastapi import APIRouter, Request
+from fastapi import FastAPI, HTTPException
+from fastapi import Query
+from fastapi import WebSocket
+from fastapi.responses import HTMLResponse
+from fastapi.security import HTTPBearer
+from passlib.hash import ldap_salted_sha1
+from sqlalchemy.orm import sessionmaker
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 
-from fastapi import Query
 # ops kube func method
 from kube.kube_config import add_kube_config, get_kube_config_content, get_key_file_path, get_kube_config_dir_file, \
     delete_kubeconfig_file
 from kube.kube_deployment import k8sDeploymentManager
+from kube.kube_ingress import k8sIngressManager
 from kube.kube_namespace import K8sNamespaceManager
-from kube.kube_service import K8sServiceManager
-
 # pod
 from kube.kube_pod import PodManager
-
-# db ops deploy and kube config
-from sql_app.models import DeployK8sData
-from sqlalchemy.orm import sessionmaker, query, Session
+from kube.kube_service import K8sServiceManager
+from kube.sys_temple import templeContent, public_download, get_file_extension
+# 导入K8S Deployment 命名空间 相关数据结构
+from schemas.k8s import CreateDeployK8S, UpdateDeployK8S, deleteDeployK8S
+# 导入K8S Ingress 命名空间 相关数据结构
+from schemas.k8s import CreateIngressK8S, UpdateIngressK8S, deleteIngressK8S
+# 导入K8S Service 命名空间 相关数据结构
+from schemas.k8s import CreateSvcK8S, UpdateSvcK8S, deleteSvcK8S
+# 导入K8S kube config 相关数据结构
+from schemas.k8s import KubeConfig, updateKubeConfig, deleteKubeConfig
+# 导入K8S ns 命名空间 相关数据结构
+from schemas.k8s import createNameSpace
+# 导入K8S Pod 命名空间 相关数据结构
+from schemas.k8s import postK8sRestartPodManager, postK8sPodManager, putK8sPodManager
+# 导入系统模板数据结构
+from schemas.template import templateManager, UpdateTemplateManager, deleteTemplateManager
+# 导入系统用户数据结构
+from schemas.user import UserManager, updateUserManager, deleteUser
 from sql_app.database import engine
-from sql_app.ops_log_db_play import query_operate_ops_log, insert_ops_bot_log
+# db ops kube service
+from sql_app.kub_svc_db_play import insert_db_svc, delete_db_svc, query_kube_svc, query_kube_svc_by_name, \
+    updata_kube_svc, \
+    query_kube_svc_by_id, query_kube_all_svc_name, query_kube_all_svc_port
 from sql_app.kube_cnfig_db_play import insert_kube_config, updata_kube_config, delete_kube_config, query_kube_config, \
     query_kube_db_env_cluster_all, query_kube_config_id, query_kube_db_env_all, query_kube_db_cluster_all, \
     query_kube_db_env_cluster_wrapper
 from sql_app.kube_deploy_db_play import insert_kube_deployment, updata_kube_deployment, delete_kube_deployment, \
     query_kube_deployment, query_kube_deployment_by_name
-
-from sql_app.models import ServiceK8sData
-# db ops kube namespace
-from sql_app.kube_ns_db_play import insert_db_ns, delete_db_ns, query_ns, query_ns_any, query_kube_db_ns_all
-
-# db ops kube service
-from sql_app.kub_svc_db_play import insert_db_svc, delete_db_svc, query_kube_svc, query_kube_svc_by_name, \
-    updata_kube_svc, \
-    query_kube_svc_by_id, query_kube_all_svc_name, query_kube_all_svc_port
-
-from kube.kube_ingress import k8sIngressManager
 # db ops kube ingress
 from sql_app.kube_ingress_db_play import insert_db_ingress, updata_db_ingress, delete_db_ingress, query_kube_ingres, \
     query_kube_ingress_by_name, query_kube_ingress_by_id
-
-# temple
-
-from sql_app.ops_template import insert_db_template, updata_template, delete_db_template, query_template, query_Template_name
-from kube.sys_temple import templeContent, public_download, get_file_extension
-import os
-#  k8s install deploy
-
-from kube.kube_deployment import k8sDeploymentManager
-from fastapi import FastAPI, HTTPException
-from fastapi import Depends
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from passlib.hash import ldap_salted_sha1
-
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-
-# user manager
-
+# db ops kube namespace
+from sql_app.kube_ns_db_play import insert_db_ns, query_ns, query_ns_any, query_kube_db_ns_all
 from sql_app.login_users import insert_db_users, delete_db_users, query_users, query_users_name, updata_users
-
-# harbor image
-
+# db ops deploy and kube config
+from sql_app.models import DeployK8sData
+from sql_app.models import ServiceK8sData
+from sql_app.ops_log_db_play import query_operate_ops_log, insert_ops_bot_log
+from tools.config import setup_logging
 from tools.harbor_tools_v2 import harbor_main_aio
-# login token
-import jwt
-import datetime
+
+# import user service
+from service.sys_user import UserService
+
+# import ws service
+from service.sh_ws import websocket_handler, terminal_html
+
+# import template service
+from service.sys_template import TemplateService
 
 security = HTTPBearer()
-JWT_SECRET_KEY = 'op-kube-manager-api-jwt'  # JWT 密钥
-JWT_ALGORITHM = 'HS256'  # JWT 加密算法
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 app_name = "op-kube-manage-api"
@@ -97,31 +99,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# WebSocket路由
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    await websocket_handler(websocket)
 
-class KubeConfig(BaseModel):
-    env: str
-    cluster_name: str
-    server_address: str
-    ca_data: str
-    client_crt_data: str
-    client_key_data: str
-
-
-class updateKubeConfig(BaseModel):
-    id: int
-    env: str
-    cluster_name: str
-    server_address: str
-    ca_data: str
-    client_crt_data: str
-    client_key_data: str
-    client_key_path: str
-
-
-class deleteKubeConfig(BaseModel):
-    id: int
-    env: str
-    cluster_name: str
+@app.get('/web_shell', response_class=HTMLResponse)
+async def terminal():
+    return terminal_html
 
 
 @app.get("/sys/ops/log/v1", summary="排查问题请求日志", tags=["sre_ops_list"])
@@ -238,13 +224,6 @@ async def delete_kube_config_v1(ReQuest: Request, request_data: deleteKubeConfig
         return {"code": 50000, "messages": str(e), "status": True, "data": "failure"}
 
 
-class createNameSpace(BaseModel):
-    env: str
-    cluster_name: str
-    ns_name: str
-    used: str
-
-
 @app.get("/v1/sys/k8s/ns/plan/", summary="Get namespace App Plan", tags=["NamespaceKubernetes"])
 def get_namespace_plan(env: Optional[str], cluster: Optional[str]):
     if not (env and cluster):
@@ -307,84 +286,6 @@ async def post_namespace_plan(request: Request, request_data: createNameSpace):
                 raise HTTPException(status_code=400, detail="create kube namespace  failure ")
             insert_ops_bot_log("Insert kube namespace ", json.dumps(user_request_data), "post", json.dumps(result))
             return result
-
-
-class CreateDeployK8S(BaseModel):
-    app_name: str
-    env: str
-    cluster: str
-    namespace: str
-    resources: str = "0.5c1g"
-    replicas: int = "1"
-    image: str
-    affinity: str = None
-    ant_affinity: str = None
-    deploy_env: str = None
-    ports: int = 80
-    volumeMounts: str = None
-    volume: str = None
-    image_pull_secrets: str = None
-    health_liven_ess: str = None
-    health_readiness: str = None
-
-
-class UpdateDeployK8S(BaseModel):
-    deployment_name: str
-    id: int
-    app_name: str
-    env: str
-    cluster: str
-    namespace: str
-    resources: str
-    replicas: int
-    image: str
-    affinity: str = None
-    ant_affinity: str = None
-    deploy_env: str = "name=TEST,value=test"
-    ports: int = None
-    volumeMounts: str = None
-    volume: str = None
-    image_pull_secrets: str = None
-    health_liven_ess: str = None
-    health_readiness: str = None
-
-
-class deleteDeployK8S(BaseModel):
-    id: int
-    env: str
-    cluster: str
-    app_name: str
-    namespace: str
-
-
-class loginUser(BaseModel):
-    username: str
-    password: str
-
-
-class postK8sRestartPodManager(BaseModel):
-    env: str
-    cluster: str
-    namespace: str
-    pod_name: str
-
-
-class postK8sPodManager(BaseModel):
-    env: str
-    cluster: str
-    namespace: str
-    pod_name: str
-    ports: int
-    image: str
-
-
-class putK8sPodManager(BaseModel):
-    env: str
-    cluster: str
-    namespace: str
-    pod_name: str
-    ports: int
-    image: str
 
 
 @app.get("/v1/kube/pod/", summary="get Pod k8s Plan", tags=["PodKubernetes"])
@@ -500,7 +401,6 @@ async def post_deploy_plan(request: Request, request_data: CreateDeployK8S) -> D
         if isinstance(deploy_env, str):
             try:
                 deploy_env_dict = dict(kv.split('=') for kv in deploy_env.split(','))
-                print("==", deploy_env_dict)
             except ValueError:
                 deploy_env_dict = {deploy_env.split('=')[0]: deploy_env.split('=')[1]}
                 print("one", deploy_env_dict)
@@ -648,37 +548,6 @@ async def del_deploy_plan(request: Request, request_data: deleteDeployK8S):
                 "status": True,
                 "data": "failure",
             }
-
-
-class CreateSvcK8S(BaseModel):
-    env: str
-    cluster_name: str
-    namespace: str
-    svc_name: str
-    selector_labels: str = "app=web,name=test_svc"
-    svc_port: int
-    svc_type: str = "ClusterIP"
-    target_port: int
-
-
-class UpdateSvcK8S(BaseModel):
-    id: int
-    env: str
-    cluster_name: str
-    namespace: str
-    svc_name: str
-    selector_labels: str
-    svc_port: int
-    svc_type: str = "ClusterIP"
-    target_port: int
-
-
-class deleteSvcK8S(BaseModel):
-    id: int
-    env: str
-    cluster_name: str
-    namespace: str
-    svc_name: str
 
 
 @app.post("/v1/k8s/service/plan/", summary="Add Service App Plan", tags=["ServiceKubernetes"])
@@ -840,47 +709,6 @@ async def delete_service_plan(ReQuest: Request, request_data: deleteSvcK8S):
             return delete_instance
         else:
             raise HTTPException(status_code=400, detail="Delete deploy App failure")
-
-
-class CreateIngressK8S(BaseModel):
-    env: str
-    cluster_name: str
-    namespace: str
-    ingress_name: str
-    host: str
-    path: str = "/"
-    path_type: str = "Prefix"
-    ingress_class_name: str = "nginx"
-    tls: bool = 0
-    tls_secret: str = ""
-    svc_name: str
-    svc_port: int
-    used: str
-
-
-class UpdateIngressK8S(BaseModel):
-    id: int
-    env: str
-    cluster_name: str
-    namespace: str
-    ingress_name: str
-    host: str
-    path: str = "/"
-    path_type: str = "Prefix"
-    ingress_class_name: str = "nginx"
-    tls: bool = 0
-    tls_secret: str = ""
-    svc_name: str
-    svc_port: int
-    used: str
-
-
-class deleteIngressK8S(BaseModel):
-    id: int
-    env: str
-    cluster_name: str
-    namespace: str
-    ingress_name: str
 
 
 @app.post("/v1/k8s/ingress/plan/", summary="Add Ingress App Plan", tags=["IngressKubernetes"])
@@ -1047,153 +875,42 @@ async def delete_ingress_plan(request: Request, request_data: deleteIngressK8S):
         else:
             return {"code": 1, "messages": "delete Ingress App failure", "status": True, "data": "failure"}
 
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    websockets.append(websocket)
-    try:
-        while True:
-            data = await websocket.receive_text()
-            for ws in websockets:
-                if ws == websocket:
-                    continue
-                await ws.send_text(data)
-    except:
-        websockets.remove(websocket)
-
-
-# web websocket
-@app.websocket("/{namespace}/{pod_name}")
-async def websocket_endpoint(websocket: WebSocket, namespace: str, pod_name: str):
-    await websocket.accept()
-    await pod_websocket(websocket, namespace, pod_name, "bash")
-
-
-# def authenticate_user(username: str, password: str):
-#     """
-#     认证用户
-#     :param username: 用户名
-#     :param password: 密码
-#     :return: 如果用户认证成功，返回 True，否则返回 False
-#     """
-#     users = {
-#         "admin": ldap_salted_sha1.hash("111111"),
-#         "alice": ldap_salted_sha1.hash("alice_password"),
-#         "bob": ldap_salted_sha1.hash("bob_password"),
-#     }
-#     if username in users:
-#         # 验证密码
-#         if ldap_salted_sha1.verify(password, users[username]):
-#             return True
-#     return False
-
-class UserManager(BaseModel):
-    username: str
-    password: str
-
-
-class deleteUserManager(BaseModel):
-    id: str
-    username: str
-    password: str
-
-
-class deleteUser(BaseModel):
-    id: int
-    username: str
-
-
-def authenticate_user(username: str, password: str):
-    """
-    数据库认证用户
-    :param username: 用户名
-    :param password: 密码
-    :return: 如果用户认证成功，返回 True，否则返回 False
-    """
-    from sql_app.models import Users
-    session = SessionLocal()
-    user = session.query(Users).filter(Users.username == username).first()
-    if user:
-        if ldap_salted_sha1.verify(password, user.password_hash):
-            return True
-    return False
-
-
 @app.post("/user/login/", summary="用户登录验证，如果成功返回用户 token，否则返回 HTTP 401 错误", tags=["sys-login-user"])
-def login(request_data: loginUser):
-    """
-    用户登录验证，如果成功返回用户 token，否则返回 HTTP 401 错误
-    """
+def login(request: Request, request_data: UserManager):
     data = request_data.dict()
     username = data.get("username")
     password = data.get("password")
-    if not authenticate_user(username, password):
-        # raise HTTPException(
-        #     status_code=401,
-        #     detail="Invalid username or password",
-        #     headers={"WWW-Authenticate": "Basic"},
-        # )
+    data = request_data.dict()
+    if not all(data.get(field) for field in ['username', 'password']):
+        return {'code': 20000, 'messages': "账号或者密码没有传递, 请检查!", "data": "", "status": False}
+    auth_user_instance = UserService(username, password)
+    if not auth_user_instance.authenticate_db_user():
         return {"code": 401, "message": "账号或者密码不正确,请检查!", "statue": True}
-    expires = datetime.datetime.utcnow() + datetime.timedelta(hours=8)
-    payload = {'username': username, 'exp': expires}
-    header = {
-        "alg": "HS256",
-        "typ": "JWT"
-    }
-    token = jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM, headers=header)
-    # 返回成功信息及 token
-    data = {
-        'username': username,
-        'code': 20000,
-        'message': 'Login {uid} User Success'.format(uid=username),
-        'data': {
-            'token': token,
-            'token_type': 'Bearer'
+    token_result = auth_user_instance.login_auth()
+    if token_result.get("code") == 20000:
+        data = token_result
+    else:
+        data = {
+            'username': username,
+            'code': 50000,
+            'message': "Description Failed to generate a token based on user information",
+            'data': {
+                'token': "",
+                'token_type': 'Bearer'
+            }
         }
-    }
     return data
-
 
 @app.get("/user/info", summary="验证 JWT token，如果验证成功，返回用户名", tags=["sys-login-user"])
 def protected(token):
-    """
-    验证 JWT token，如果验证成功，返回用户名
-    """
-    try:
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        username = payload.get('username')
-        if username:
-            data = {
-                'code': 20000,
-                'message': 'Login User Success',
-                'data': {
-                    "roles": ["admin"],
-                    "name": "Super Admin",
-                    'avatar': 'https://wpimg.wallstcn.com/f778738c-e4f8-4870-b634-56703b4acafe.gif',
-                    "introduction": "I am a super administrator",
-                }
-            }
-            return data
-        else:
-            # JWT 验证失败
-            raise HTTPException(status_code=401, detail="Invalid token")
-    except jwt.ExpiredSignatureError:
-        # token 过期
-        raise HTTPException(status_code=401, detail="Token expired")
-    except:
-        # JWT 验证失败
-        raise HTTPException(status_code=401, detail="Invalid token")
-
+    if not (token):
+        raise HTTPException(status_code=400, detail="Missing parameter")
+        return {"code": 50000, "message": "Missing parameter", "statue": True}
+    return UserService.protected_token(token)
 
 @app.post("/user/logout", summary="get logout user to  jwt token ", tags=["sys-login-user"])
 def logout():
-    data = {
-        'code': 20000,
-        'message': 'Logged out successfully!',
-        'data': {},
-    }
-    return data
+    return UserService.logout_msg()
 
 
 @app.post("/user/add", summary="add user  ", tags=["sys-users"])
@@ -1204,21 +921,10 @@ async def useradd(request: Request, request_data: UserManager):
                ['username', 'password']):
         return {'code': 20000, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
     username = data.get("username")
-    result_username = query_users_name(username)
-    if result_username.get("code") == 20000 and result_username.get("data"):
-        raise HTTPException(status_code=409, detail=f"User {username} already exists,禁止重复用户")
-    password_hash = ldap_salted_sha1.hash(data.get("password"))
-    created_user = insert_db_users(
-        username=username,
-        password_hash=password_hash
-    )
-    if created_user.get("code") == 20000:
-        insert_ops_bot_log("Insert db user success ", json.dumps(user_request_data), "post",
-                           json.dumps(created_user))
-        return created_user
-    else:
-        return created_user
-
+    password = data.get("password")
+    userInstance = UserService(username, password)
+    user_result = userInstance.add_user(user_request_data)
+    return user_result
 
 @app.get("/user/query", summary="query user", tags=["sys-users"])
 def get_deploy_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000)):
@@ -1238,17 +944,13 @@ async def delete_users(request: Request, request_data: deleteUser):
     result_username = query_users_name(username)
     if not result_username.get("data"):
         raise HTTPException(status_code=409, detail=f"User {username} not exists already,删除失败")
-    delete_instance = delete_db_users(data["id"])
-    if delete_instance.get("code") == 20000:
-        insert_ops_bot_log("Delete Users App", json.dumps(user_request_data), "delete",
-                           json.dumps(delete_instance))
-        return delete_instance
-    else:
-        return delete_instance
+    userInstance = UserService(username, password="")
+    user_result = userInstance.delete_user(id, user_request_data)
+    return user_result
 
 
 @app.put("/user/update", summary="User Update Plan", tags=["sys-users"])
-async def put_user_update(request: Request, request_data: deleteUserManager):
+async def put_user_update(request: Request, request_data: updateUserManager):
     data = request_data.dict()
     user_request_data = await request.json()
     username = data.get("username")
@@ -1256,45 +958,15 @@ async def put_user_update(request: Request, request_data: deleteUserManager):
     new_password = data.get('password')
     if not (username and new_password and ID):
         raise HTTPException(status_code=400, detail="Missing parameter")
-    result_username = query_users_name(username)
-    if not result_username.get("data"):
-        raise HTTPException(status_code=409, detail=f"User {username} not exists already, 更新失败")
-    password_hash = ldap_salted_sha1.hash(new_password)
-    result = updata_users(ID, username, password_hash)
-    if result.get("code") == 20000:
-        insert_ops_bot_log("Update user success", json.dumps(user_request_data), "post", json.dumps(result))
-        return result
-    else:
-        return {"code": 1, "messages": "update users failure", "status": True, "data": "failure"}
-
-
-class templateManager(BaseModel):
-    name: str
-    content: str
-    t_type: str
-    language: str
-    remark: str
-
-
-class UpdateTemplateManager(BaseModel):
-    id: int
-    name: str
-    content: str
-    t_type: int
-    language: str
-    remark: str
-
-
-class deleteTemplateManager(BaseModel):
-    id: str
-    name: str
+    userInstance = UserService(username, new_password)
+    user_result = userInstance.update_user(ID, user_request_data)
+    return user_result
 
 
 @app.get("/api/template", summary="query template", tags=["sys-template"])
 def get_template_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000)):
     result_data = query_template(page, page_size)
     return result_data
-
 
 @app.post("/api/template", summary="模板自定义模板", tags=["sys-template"])
 def save_template(request: Request, request_data: templateManager):
@@ -1306,26 +978,9 @@ def save_template(request: Request, request_data: templateManager):
     remark = data.get("remark")
     if not (name and content and type and language and remark):
         raise HTTPException(status_code=400, detail="Missing parameter")
-    resultTemplateName = query_Template_name(name)
-    if resultTemplateName.get("code") == 20000 and resultTemplateName.get("data"):
-        return {"code": 20000, "messages": f"Template {name} already exists,禁止重复", "status": True,
-                "data": "create Template failure"}
-    fileInstance = templeContent(language, content)
-    file_extension = get_file_extension(language)
-    new_name = name + file_extension
-    fileInstanceResult = fileInstance.controller(new_name)
-    if fileInstanceResult.get("code") == 20000:
-        created_temple = insert_db_template(
-            name=new_name,
-            t_type=type,
-            content=content,
-            language=language,
-            remark=remark
-        )
-        return created_temple
-    else:
-        return {"code": 50000, "messages": "create File failure", "status": True, "data": "create File failure"}
-
+    temple_instance = TemplateService()
+    result = temple_instance.add_controller_template(name, content, language, type, remark)
+    return result
 
 @app.put("/api/template", summary="Template Update Plan", tags=["sys-template"])
 async def put_temple_update(request: Request, request_data: UpdateTemplateManager):
@@ -1339,21 +994,9 @@ async def put_temple_update(request: Request, request_data: UpdateTemplateManage
     ID = data.get("id")
     if not (ID and name and content and type and language and remark):
         raise HTTPException(status_code=400, detail="Missing parameter")
-    resultTemplateName = query_Template_name(name)
-    if resultTemplateName.get("code") == 20000 and resultTemplateName.get("data"):
-        fileInstance = templeContent(language, content)
-        fileInstanceResult = fileInstance.controller(name=name, op="update")
-        if fileInstanceResult.get("code") != 20000:
-            raise HTTPException(status_code=50000, detail="template  update failure")
-        result = updata_template(ID, name, type, content, language, remark)
-        if result.get("code") == 20000:
-            insert_ops_bot_log("Update Template success", json.dumps(user_request_data), "post", json.dumps(result))
-            return result
-        else:
-            return {"code": 1, "messages": "Update Template failure", "status": True, "data": "failure"}
-    else:
-        raise HTTPException(status_code=50000, detail="template delete failure")
-
+    temple_instance = TemplateService()
+    result = temple_instance.update_controller_template(ID, name, content, language, type, remark, user_request_data)
+    return result
 
 @app.delete("/api/template", summary="Template Delete Plan", tags=["sys-template"])
 async def delete_temple(request: Request, request_data: deleteTemplateManager):
@@ -1366,39 +1009,23 @@ async def delete_temple(request: Request, request_data: deleteTemplateManager):
     ID = data.get("id")
     if not (ID and name):
         raise HTTPException(status_code=400, detail="Missing parameter")
-    resultTemplateName = query_Template_name(name)
-    if resultTemplateName.get("code") == 20000 and resultTemplateName.get("data"):
-        fileInstance = templeContent(language, content)
-        fileInstanceResult = fileInstance.controller(name=name, op="delete")
-        if fileInstanceResult.get("code") != 20000:
-            raise HTTPException(status_code=50000, detail="template  delete failure")
-        result = delete_db_template(ID)
-        if result.get("code") == 20000:
-            insert_ops_bot_log("Delete Template success", json.dumps(user_request_data), "post", json.dumps(result))
-            return result
-        else:
-            return {"code": 1, "messages": "Delete Template failure", "status": True, "data": "failure"}
-    else:
-        raise HTTPException(status_code=50000, detail="template delete failure")
-
+    temple_instance = TemplateService()
+    result = temple_instance.delete_controller_template(ID, name, content, language, type, remark, user_request_data)
+    return result
 
 @app.get("/api/template/download/", summary="template download  Plan", tags=["sys-template"])
 async def download_file(name: Optional[str], language: Optional[str]):
     if not (name and language):
         raise HTTPException(status_code=50000, detail="Missing parameter")
-    base_path = public_download()
-    file_path = os.path.join(base_path, f"{name}")
-    if os.path.exists(file_path):
-        return FileResponse(file_path, filename=name, media_type="application/octet-stream")
-    else:
-        return {"code": 50000, "message": "文件不存在", "status": True, "data": "ops failure"}
-
+    temple_instance = TemplateService()
+    result = temple_instance.download_file_controller_template(name,language)
+    return result
 
 @app.get("/api/image", summary="images  query", tags=["sys-image"])
-async def queryHarbor(project_name: Optional[str], repo_name: Optional[str], repo_type: Optional[str] = None):
-    if not (project_name and repo_name):
+async def queryHarbor(project_name: Optional[str], app_name: Optional[str], repo_type: Optional[str] = None):
+    if not (project_name and app_name):
         raise HTTPException(status_code=50000, detail="Missing parameter")
-    result = await harbor_main_aio(project_name, repo_name)
+    result = await harbor_main_aio(project_name, app_name)
     return result
 
 

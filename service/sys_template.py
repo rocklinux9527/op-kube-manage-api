@@ -58,7 +58,6 @@ class TemplateService():
         if not result:
            return {"code": 50000, "message": "create File failure", "status": True, "data": "create File failure"}
         result_template = self.handle_template_file(language, content, name, op="update")
-        print("更新文件", result_template)
         if result_template:
             result = updata_template(ID, name, type, content, language, remark)
             if result.get("code") == 20000:

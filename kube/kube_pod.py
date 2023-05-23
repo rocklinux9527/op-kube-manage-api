@@ -33,7 +33,6 @@ class PodManager:
         )
         try:
             api_response = self.apps_api.create_namespaced_pod(self.namespace, pod)
-            print(api_response)
             message = f"Pod {api_response.metadata.name} in namespace {self.namespace}  Pod created successfully"
             setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=message)
             result = {"code": 20000, "total": 1, "data": pod_name + "create success", "messages": "pod create  data success",

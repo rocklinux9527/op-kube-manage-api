@@ -105,7 +105,6 @@ class K8sServiceManager:
             raise ValueError(f"{msg} Provided selector labels are of type {type(selector_labels)}")
         try:
             svc = self.v1.read_namespaced_service(name=svc_name, namespace=namespace)
-            print("现在版本信息", svc)
             body = client.V1Service(
                 api_version="v1",
                 kind="Service",

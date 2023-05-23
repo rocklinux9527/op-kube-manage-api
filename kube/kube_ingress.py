@@ -81,6 +81,9 @@ class k8sIngressManager():
                 if status == 409:
                     msg = "create {name} ingress failure, ingress not existing".format(name=ingress_name)
                     return {"code": 1, "messages": str(e), "data": "", "status": False}
+            except Exception as e:
+                print(e)
+                return {"code": 1, "messages": str(e), "data": "", "status": False}
         else:
             print("start http func ")
             runHttpBodyData = self.kube_http_ingress_body(ingress_name, host, svc_name, svc_port, path, path_type, ing_class_name)
@@ -122,6 +125,7 @@ class k8sIngressManager():
                                                             ing_class_name, tls_secret)
             try:
                 data = networking_api.create_namespaced_ingress(namespace=self.namespace, body=runHttpsBodyData)
+                print(data)
                 if data:
                     return {
                         "code": 0,

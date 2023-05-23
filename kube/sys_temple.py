@@ -28,7 +28,6 @@ class templeContent():
 
     def public_write(self, path, filename):
         file_path = os.path.join(path, filename)
-        print("开始写文件", file_path)
         try:
             if not os.path.exists(file_path):
                 with open(file_path, "w") as file:

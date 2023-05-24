@@ -39,6 +39,13 @@ from schemas.template import templateManager, UpdateTemplateManager, deleteTempl
 # 导入系统用户数据结构
 from schemas.user import UserManager, updateUserManager, deleteUser
 from service.kube_config import kubeConfigService
+
+# import k8s cluster check
+from service.kube_cluser_check import kubeClusterCheckService
+
+# import mysql db connection check
+from service.check_mysql_conn import check_mysql_connection
+
 # import kube deployment
 from service.kube_deployment import kubeDeploymentService
 # import kube ingress
@@ -73,7 +80,7 @@ from sql_app.ops_log_db_play import query_operate_ops_log
 # ops temple
 from sql_app.ops_template import query_template
 from tools.config import setup_logging
-from tools.harbor_tools_v2 import harbor_main_aio
+from tools.harbor_tools_v2 import check_harbor, harbor_main_aio
 
 # import kubeConfigService
 security = HTTPBearer()
@@ -112,6 +119,30 @@ async def terminal():
 @app.get("/sys/ops/log/v1", summary="排查问题请求日志", tags=["sre_ops_list"])
 def get_sys_ops_log(descname: Optional[str] = None, request: Optional[str] = None):
     return query_operate_ops_log(descname, request)
+
+
+@app.get("/check-mysql", summary="mysql db connection heck ", tags=["ping"])
+async def check_mysql():
+    result = await check_mysql_connection()
+    return result
+
+
+@app.get("/check-harbor", summary="images harbor check ", tags=["ping"])
+async def checkHarbor(host: Optional[str], version: Optional[str] = "v2"):
+    versionList = ["v1", "v2"]
+    if version not in versionList:
+        return {"code": 50000, "data": "", "message": f'需要传递版本,仅支持{versionList}', "status": False}
+    result = await check_harbor(host=host, version=version)
+    return result
+
+@app.get("/check-kube-cluster", summary="K8S  kube cluster check ", tags=["ping"])
+async def check_k8s_kube_cluster(env: Optional[str], cluster: Optional[str]):
+    versionList = ["v1", "v2"]
+    if not (cluster, env):
+        return {"code": 50000, "data": "", "message": f'需要传环境和集群标识', "status": False}
+    k8s_cluster_instance = kubeClusterCheckService()
+    result = await k8s_cluster_instance.kube_cluster_status_check(env_name=env, cluster_name=cluster)
+    return result
 
 
 @app.get("/v1/kube/config/", summary="get KubeConfig k8s Plan", tags=["ConfigKubernetes"])
@@ -277,13 +308,6 @@ def update_kube_Pod(ReQuest: Request, request_data: putK8sPodManager):
     pod_update_instance = kubePodService()
     pod_update_result = pod_update_instance.update(data)
     return pod_update_result
-
-
-def generate_deployment_id():
-    current_date = datetime.datetime.now().strftime("%Y%m%d")
-    random_string = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz', k=4))
-    deployment_id = f"{current_date}-{random_string}"
-    return deployment_id
 
 
 @app.post("/v1/k8s/deployment/plan/", summary="Add deployment App Plan", tags=["DeployKubernetes"])
@@ -666,6 +690,7 @@ def save_template(request: Request, request_data: templateManager):
     result = temple_instance.add_controller_template(name, content, language, type, remark)
     return result
 
+
 @app.put("/api/template", summary="Template Update Plan", tags=["sys-template"])
 async def put_temple_update(request: Request, request_data: UpdateTemplateManager):
     data = request_data.dict()
@@ -698,6 +723,7 @@ async def delete_temple(request: Request, request_data: deleteTemplateManager):
     result = temple_instance.delete_controller_template(ID, name, content, language, type, remark, user_request_data)
     return result
 
+
 @app.get("/api/template/download/", summary="template download  Plan", tags=["sys-template"])
 async def download_file(name: Optional[str], language: Optional[str]):
     if not (name and language):
@@ -714,6 +740,9 @@ async def queryHarbor(project_name: Optional[str], app_name: Optional[str], repo
     result = await harbor_main_aio(project_name, app_name)
     return result
 
+
+
+
 if __name__ == "__main__":
     setup_logging(log_file_path="fastapi.log", project_root="./logs", message="startup fastapi")
-    uvicorn.run(app, host="0.0.0.0", port=9999, log_level="debug")
+    uvicorn.run(app, host="0.0.0.0", port=8888, log_level="debug")

@@ -2,6 +2,81 @@ import asyncio
 import aiohttp
 import base64
 from tools.harbor_yaml_load import YamlHandler
+from fastapi import HTTPException
+
+async def check_harbor(host, version):
+    if not host:
+        try:
+            host = YamlHandler().get("access_url")
+        except Exception as e:
+            return {
+                "code": 50000,
+                "data": "Failure",
+                "message": "无法从 Harbor 配置中获取默认主机地址",
+                "status": False,
+            }
+
+    if version == "v2":
+        url = f"https://{host}/api/v2.0/ping"
+    else:
+        url = f"https://{host}/api/ping"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, verify_ssl=False, timeout=5) as response:
+                response.raise_for_status()
+    except aiohttp.ClientError as e:
+        msg = "无法连接到 Harbor 镜像仓库"
+        return {
+            "code": 50000,
+            "data": "Failure",
+            "message": msg,
+        }
+    except aiohttp.HttpProcessingError as e:
+        msg = "Harbor 镜像仓库连接异常"
+        return {
+            "code": 50000,
+            "data": "Failure",
+            "message": msg,
+        }
+    except aiohttp.client_exceptions.ClientResponseError as e:
+        msg = f'Harbor 镜像仓库连接异常，{url} 未找到'
+        return {
+            "code": 50000,
+            "data": "Failure",
+            "message": msg,
+        }
+    return {
+        "code": 20000,
+        "data": "Success",
+        "message": "Harbor 镜像仓库可正常链接",
+    }
+
+async def check_multiple_harbors(harbors):
+    """
+    1.并发多个仓库地址进行检查
+    Args:
+        harbors:
+
+    Returns:
+
+    """
+    tasks = []
+    for harbor in harbors:
+        task = asyncio.create_task(check_harbor(harbor["host"], harbor["version"]))
+        tasks.append(task)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    response = []
+    for result in results:
+        if isinstance(result, Exception):
+            response.append({
+                "code": 50000,
+                "data": "Failure",
+                "message": str(result),
+            })
+        else:
+            response.append(result)
+    return response
 
 async def get_harbor_tags(base_url, project_name, repo_name, headers):
     """
@@ -51,6 +126,8 @@ async def harbor_main_aio(project_name, repo_name):
     except Exception as e:
         print(f"Error: {e}")
         return {"code": 50000, "messages": str(e), "status": False, "data": ""}
+
+
 
 # if __name__ == "__main__":
 #     loop = asyncio.get_event_loop()

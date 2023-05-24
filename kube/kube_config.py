@@ -8,8 +8,6 @@ os.sys.path.append(script_path)
 os.sys.path.append(conf_path)
 import asyncio
 import os
-#from tools.nacosGet import getNacosInfo
-
 
 def getNacos_key(cluster, keyName):
     """
@@ -75,8 +73,6 @@ def get_key_file_path(env, cluster):
     1.传递环境env 和集群名称 返回kubeconfig-本地文件路径
     """
     return conf_path + "/kubeconf/{env}_{cluster}.conf".format(env=env, cluster=cluster)
-
-
 
 def get_kube_config_content(env, cluster_name):
     """

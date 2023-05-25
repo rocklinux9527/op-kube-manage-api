@@ -121,8 +121,8 @@ def query_kube_ingres(page, page_size, env, cluster_name, namespace, ingress_nam
     conditions = [
         (env, data.filter_by(env=env).first()),
         (cluster_name, data.filter_by(cluster_name=cluster_name).all()),
-        (namespace, data.filter_by(namespace=namespace).all()),
-        (ingress_name, data.filter_by(ingress_name=ingress_name).first()),
+        # (namespace, data.filter_by(namespace=namespace).all()),
+        (ingress_name, data.filter(IngressK8sData.ingress_name.ilike(f"%{ingress_name}%")).all()),
         (host, data.filter_by(host=host).first()),
         (svc_name, data.filter_by(svc_name=svc_name).first()),
         (svc_port, data.filter_by(svc_port=svc_port).all()),

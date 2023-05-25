@@ -68,7 +68,7 @@ from sql_app.kub_svc_db_play import query_kube_svc, query_kube_all_svc_name, que
 from sql_app.kube_cnfig_db_play import query_kube_config, \
     query_kube_db_env_cluster_all, query_kube_config_id, query_kube_db_env_all, query_kube_db_cluster_all, \
     query_kube_db_env_cluster_wrapper
-from sql_app.kube_deploy_db_play import query_kube_deployment
+from sql_app.kube_deploy_db_play import query_kube_deployment,query_search_like_deploy,query_kube_deployment_v2
 # db ops kube ingress
 from sql_app.kube_ingress_db_play import query_kube_ingres, \
     query_kube_ingress_by_name
@@ -136,12 +136,12 @@ async def checkHarbor(host: Optional[str], version: Optional[str] = "v2"):
     return result
 
 @app.get("/check-kube-cluster", summary="K8S  kube cluster check ", tags=["ping"])
-async def check_k8s_kube_cluster(env: Optional[str], cluster: Optional[str]):
+async def check_k8s_kube_cluster(env: Optional[str], cluster_name: Optional[str]):
     versionList = ["v1", "v2"]
-    if not (cluster, env):
+    if not (cluster_name, env):
         return {"code": 50000, "data": "", "message": f'需要传环境和集群标识', "status": False}
     k8s_cluster_instance = kubeClusterCheckService()
-    result = await k8s_cluster_instance.kube_cluster_status_check(env_name=env, cluster_name=cluster)
+    result = await k8s_cluster_instance.kube_cluster_status_check(env_name=env, cluster_name=cluster_name)
     return result
 
 
@@ -229,8 +229,8 @@ def get_namespace_plan(env: Optional[str], cluster: Optional[str]):
 
 
 @app.get("/v1/db/k8s/ns/plan/", summary="Get namespace App Plan", tags=["NamespaceKubernetes"])
-def get_db_namespace_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=100)):
-    db_result = query_ns(page, page_size)
+def get_db_namespace_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=100),ns_name: Optional[str] =None):
+    db_result = query_ns(ns_name,page, page_size)
     return db_result
 
 
@@ -365,12 +365,25 @@ async def put_deploy_plan(request: Request, request_data: UpdateDeployK8S):
     return deploy_update_instance_result
 
 
+@app.get("/v1/k8s/deployment/like", summary="Get deployment like App Plan", tags=["DeployKubernetes"])
+def get_app_name_like(app_name: str = Query(..., description="模糊查询名称"), page: int = Query(1, ge=1, description="页码"),
+                      page_size: int = Query(10, ge=1, description="每页条数")):
+    if not (app_name):
+        return {
+            "code": 50000,
+            "messages": "Get deploy Like App failure, Incorrect parameters",
+            "status": True,
+            "data": "failure"
+        }
+    result_data = query_search_like_deploy(app_name, page, page_size)
+    return result_data
+
 @app.get("/v1/k8s/deployment/plan/", summary="Get deployment App Plan", tags=["DeployKubernetes"])
 def get_deploy_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000), env: Optional[str] = None,
                     cluster: Optional[str] = None, app_name: Optional[str] = None,
                     image: Optional[str] = None, ports: Optional[str] = None,
                     image_pull_secrets: Optional[str] = None, deploy_id: Optional[int] = None):
-    result_data = query_kube_deployment(page, page_size, env, cluster, app_name, image, ports, image_pull_secrets, deploy_id)
+    result_data = query_kube_deployment_v2(page, page_size, env, cluster, app_name, image, ports, image_pull_secrets, deploy_id)
     return result_data
 
 

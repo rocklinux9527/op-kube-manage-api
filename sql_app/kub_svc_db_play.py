@@ -123,7 +123,7 @@ def query_kube_svc(page, page_size, env=None, cluster_name=None, namespace=None,
     if namespace:
         data = data.filter_by(namespace=namespace)
     if svc_name:
-        data = data.filter_by(svc_name=svc_name)
+        data = data.filter(ServiceK8sData.svc_name.ilike(f"%{svc_name}%"))
     if selector_labels:
         data = data.filter_by(selector_labels=selector_labels)
     if svc_port:
@@ -148,13 +148,12 @@ def query_kube_svc(page, page_size, env=None, cluster_name=None, namespace=None,
         print(e)
         session.commit()
         session.close()
-        return {"code": 50000, "total": 0,"data": [i.to_dict for i in data], "messages": "query success", "status": True, "columns": k8sServiceHeader}
+        return {"code": 50000, "total": 0, "data": [i.to_dict for i in data], "messages": "query success", "status": True, "columns": k8sServiceHeader}
 
 def query_kube_svc_by_name(env_name, cluster_name, svc_name, namespace_name):
     session = SessionLocal()
     data = session.query(ServiceK8sData)
     results = data.filter(and_(ServiceK8sData.env == env_name, ServiceK8sData.cluster_name == cluster_name, ServiceK8sData.svc_name == svc_name, ServiceK8sData.namespace == namespace_name)).all()
-    print(results)
     if env_name and cluster_name and results:
         return {"code": 0, "data": [i.to_dict for i in results], "status": True}
     else:

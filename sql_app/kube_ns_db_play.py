@@ -45,7 +45,7 @@ def delete_db_ns(Id):
     return model_delete(DeployNsData, Id)
 
 
-def query_ns(page: int = 1, page_size: int = 10):
+def query_ns(ns_name, page: int = 1, page_size: int = 10):
     from tools.config import k8sNameSpaceHeader
     """
     1.查询查询配置信息
@@ -53,11 +53,14 @@ def query_ns(page: int = 1, page_size: int = 10):
     session = SessionLocal()
     query = session.query(DeployNsData)
     try:
+        if ns_name:
+            query = query.filter(DeployNsData.ns_name.ilike(f"%{ns_name}%"))
         data = query.limit(page_size).offset((page - 1) * page_size).all()
         total = query.count()
         return {"code": 20000, "total": total, "data": jsonable_encoder(data), "messages": "query success", "status": True,
                 "columns": k8sNameSpaceHeader}
     except Exception as e:
+        print(e)
         setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
         return {"code": 50000, "total": 0, "data": "query data failure", "messages": str(e), "status": True,
                 "columns": k8sNameSpaceHeader}

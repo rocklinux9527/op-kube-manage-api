@@ -13,4 +13,4 @@ class kubeClusterCheckService():
                 msg = "获取集群 client path  failure, 请检查问题"
                 return {"code": 50000, "message": msg, "status": True}
             insert_cluster_instance = await asyncio.gather(check_k8s_cluster(client_config_file=client_path.get("client_key_path")))
-            return insert_cluster_instance
+            return {**insert_cluster_instance[0]}

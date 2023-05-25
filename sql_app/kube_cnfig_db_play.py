@@ -116,7 +116,7 @@ def query_kube_config(page: int = 1, page_size: int = 10, env: Optional[str] = N
     query = session.query(KubeK8sConfig)
     try:
         if env:
-            query = query.filter(KubeK8sConfig.env == env)
+            query = query.filter(KubeK8sConfig.env.ilike(f"%{env}%"))
         if cluster_name:
             query = query.filter(KubeK8sConfig.cluster_name == cluster_name)
         if server_address:

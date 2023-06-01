@@ -145,7 +145,7 @@ async def check_k8s_kube_cluster(env: Optional[str], cluster_name: Optional[str]
     return result
 
 
-@app.get("/v1/kube/config/", summary="get KubeConfig k8s Plan", tags=["ConfigKubernetes"])
+@app.get("/v1/k8s/kube/config/", summary="get KubeConfig k8s Plan", tags=["ConfigKubernetes"])
 def get_kube_config(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=100), env: Optional[str] = None,
                     cluster_name: Optional[str] = None, server_address: Optional[str] = None,
                     client_key_path: Optional[str] = None):
@@ -177,7 +177,7 @@ def get_kube_config_file_list():
     return result_data
 
 
-@app.post("/v1/kube/config/", summary="Add KubeConfig K8S Plan", tags=["ConfigKubernetes"])
+@app.post("/v1/k8s/kube/config/", summary="Add KubeConfig K8S Plan", tags=["ConfigKubernetes"])
 async def create_kube_config(request: Request, request_data: KubeConfig):
     user_request_data = await request.json()
     data = request_data.dict()
@@ -189,7 +189,7 @@ async def create_kube_config(request: Request, request_data: KubeConfig):
     return result
 
 
-@app.put("/v1/kube/config/", summary="Put KubeConfig K8S Plan", tags=["ConfigKubernetes"])
+@app.put("/v1/k8s/kube/config/", summary="Put KubeConfig K8S Plan", tags=["ConfigKubernetes"])
 async def update_kube_config(ReQuest: Request, request_data: updateKubeConfig):
     item_dict = request_data.dict()
     userRequestData = await ReQuest.json()
@@ -202,7 +202,7 @@ async def update_kube_config(ReQuest: Request, request_data: updateKubeConfig):
     return result
 
 
-@app.delete("/v1/kube/config/", summary="Delete KubeConfig K8S Plan", tags=["ConfigKubernetes"])
+@app.delete("/v1/k8s/kube/config/", summary="Delete KubeConfig K8S Plan", tags=["ConfigKubernetes"])
 async def delete_kube_config_v1(ReQuest: Request, request_data: deleteKubeConfig):
     import asyncio
     item_dict = request_data.dict()

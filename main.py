@@ -94,7 +94,7 @@ app = FastAPI(
 )
 router = APIRouter()
 
-origins = ["*"]
+origins = ["*", "127.0.0.1:80"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -116,18 +116,18 @@ async def terminal():
     return terminal_html
 
 
-@app.get("/sys/ops/log/v1", summary="排查问题请求日志", tags=["sre_ops_list"])
+@app.get("/api/sys/ops/log/v1", summary="排查问题请求日志", tags=["sre_ops_list"])
 def get_sys_ops_log(descname: Optional[str] = None, request: Optional[str] = None):
     return query_operate_ops_log(descname, request)
 
 
-@app.get("/check-mysql", summary="mysql db connection heck ", tags=["ping"])
+@app.get("/api/check-mysql", summary="mysql db connection heck ", tags=["ping"])
 async def check_mysql():
     result = await check_mysql_connection()
     return result
 
 
-@app.get("/check-harbor", summary="images harbor check ", tags=["ping"])
+@app.get("/api/check-harbor", summary="images harbor check ", tags=["ping"])
 async def checkHarbor(host: Optional[str], version: Optional[str] = "v2"):
     versionList = ["v1", "v2"]
     if version not in versionList:
@@ -135,7 +135,7 @@ async def checkHarbor(host: Optional[str], version: Optional[str] = "v2"):
     result = await check_harbor(host=host, version=version)
     return result
 
-@app.get("/check-kube-cluster", summary="K8S  kube cluster check ", tags=["ping"])
+@app.get("/api/check-kube-cluster", summary="K8S  kube cluster check ", tags=["ping"])
 async def check_k8s_kube_cluster(env: Optional[str], cluster_name: Optional[str]):
     versionList = ["v1", "v2"]
     if not (cluster_name, env):
@@ -145,7 +145,7 @@ async def check_k8s_kube_cluster(env: Optional[str], cluster_name: Optional[str]
     return result
 
 
-@app.get("/v1/k8s/kube/config/", summary="get KubeConfig k8s Plan", tags=["ConfigKubernetes"])
+@app.get("/api/v1/k8s/kube/config/", summary="get KubeConfig k8s Plan", tags=["ConfigKubernetes"])
 def get_kube_config(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=100), env: Optional[str] = None,
                     cluster_name: Optional[str] = None, server_address: Optional[str] = None,
                     client_key_path: Optional[str] = None):
@@ -153,31 +153,31 @@ def get_kube_config(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0,
     return result_data
 
 
-@app.get("/v1/kube/env/list/", summary="get KubeConfig k8s EnvList Plan", tags=["ConfigKubernetes"])
+@app.get("/api/v1/kube/env/list/", summary="get KubeConfig k8s EnvList Plan", tags=["ConfigKubernetes"])
 def get_kube_envList():
     result_data = query_kube_db_env_all()
     return result_data
 
 
-@app.get("/v1/kube/cluster/List/", summary="get KubeConfig k8s EnvList Plan", tags=["ConfigKubernetes"])
+@app.get("/api/v1/kube/cluster/List/", summary="get KubeConfig k8s EnvList Plan", tags=["ConfigKubernetes"])
 def get_kube_clusterList():
     result_data = query_kube_db_cluster_all()
     return result_data
 
 
-@app.get("/v1/kube/config/content/", summary="get KubeConfig k8s content Plan", tags=["ConfigKubernetes"])
+@app.get("/api/v1/kube/config/content/", summary="get KubeConfig k8s content Plan", tags=["ConfigKubernetes"])
 def get_kube_config_content_v1(env: str, cluster_name: str):
     result_data = get_kube_config_content(env, cluster_name)
     return result_data
 
 
-@app.get("/v1/kube/kube/file/list", summary="get KubeConfig file list", tags=["ConfigKubernetes"])
+@app.get("/api/v1/kube/kube/file/list", summary="get KubeConfig file list", tags=["ConfigKubernetes"])
 def get_kube_config_file_list():
     result_data = get_kube_config_dir_file()
     return result_data
 
 
-@app.post("/v1/k8s/kube/config/", summary="Add KubeConfig K8S Plan", tags=["ConfigKubernetes"])
+@app.post("/api/v1/k8s/kube/config/", summary="Add KubeConfig K8S Plan", tags=["ConfigKubernetes"])
 async def create_kube_config(request: Request, request_data: KubeConfig):
     user_request_data = await request.json()
     data = request_data.dict()
@@ -189,7 +189,7 @@ async def create_kube_config(request: Request, request_data: KubeConfig):
     return result
 
 
-@app.put("/v1/k8s/kube/config/", summary="Put KubeConfig K8S Plan", tags=["ConfigKubernetes"])
+@app.put("/api/v1/k8s/kube/config/", summary="Put KubeConfig K8S Plan", tags=["ConfigKubernetes"])
 async def update_kube_config(ReQuest: Request, request_data: updateKubeConfig):
     item_dict = request_data.dict()
     userRequestData = await ReQuest.json()
@@ -202,7 +202,7 @@ async def update_kube_config(ReQuest: Request, request_data: updateKubeConfig):
     return result
 
 
-@app.delete("/v1/k8s/kube/config/", summary="Delete KubeConfig K8S Plan", tags=["ConfigKubernetes"])
+@app.delete("/api/v1/k8s/kube/config/", summary="Delete KubeConfig K8S Plan", tags=["ConfigKubernetes"])
 async def delete_kube_config_v1(ReQuest: Request, request_data: deleteKubeConfig):
     import asyncio
     item_dict = request_data.dict()
@@ -212,7 +212,7 @@ async def delete_kube_config_v1(ReQuest: Request, request_data: deleteKubeConfig
     return result
 
 
-@app.get("/v1/sys/k8s/ns/plan/", summary="Get namespace App Plan", tags=["NamespaceKubernetes"])
+@app.get("/api/v1/sys/k8s/ns/plan/", summary="Get namespace App Plan", tags=["NamespaceKubernetes"])
 def get_namespace_plan(env: Optional[str], cluster: Optional[str]):
     if not (env and cluster):
         raise HTTPException(status_code=400, detail="If the parameter is insufficient, check it")
@@ -228,19 +228,19 @@ def get_namespace_plan(env: Optional[str], cluster: Optional[str]):
         return ns_result
 
 
-@app.get("/v1/db/k8s/ns/plan/", summary="Get namespace App Plan", tags=["NamespaceKubernetes"])
+@app.get("/api/v1/db/k8s/ns/plan/", summary="Get namespace App Plan", tags=["NamespaceKubernetes"])
 def get_db_namespace_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=100),ns_name: Optional[str] =None):
     db_result = query_ns(ns_name,page, page_size)
     return db_result
 
 
-@app.get("/v1/db/k8s/ns/all/", summary="Get namespace App All Plan", tags=["NamespaceKubernetes"])
+@app.get("/api/v1/db/k8s/ns/all/", summary="Get namespace App All Plan", tags=["NamespaceKubernetes"])
 def get_db_namespace_plan():
     ns_all_db_result = query_kube_db_ns_all()
     return ns_all_db_result
 
 
-@app.post("/v1/db/k8s/ns/plan/", summary="Add namespace App Plan", tags=["NamespaceKubernetes"])
+@app.post("/api/v1/db/k8s/ns/plan/", summary="Add namespace App Plan", tags=["NamespaceKubernetes"])
 async def post_namespace_plan(request: Request, request_data: createNameSpace):
     from sqlalchemy.orm import sessionmaker
     from sql_app.database import engine
@@ -258,7 +258,7 @@ async def post_namespace_plan(request: Request, request_data: createNameSpace):
     return ns_result
 
 
-@app.get("/v1/kube/pod/", summary="get Pod k8s Plan", tags=["PodKubernetes"])
+@app.get("/api/v1/kube/pod/", summary="get Pod k8s Plan", tags=["PodKubernetes"])
 def get_kube_pod(env: Optional[str], cluster: Optional[str], namespace: Optional[str]):
     if not (env and cluster and namespace):
         raise HTTPException(status_code=400, detail="The cluster or environment does not exist")
@@ -270,7 +270,7 @@ def get_kube_pod(env: Optional[str], cluster: Optional[str], namespace: Optional
         return pod_instance.get_pods(env, cluster)
 
 
-@app.post("/v1/kube/pod/restart", summary="POST Pod Restart k8s Plan", tags=["PodKubernetes"])
+@app.post("/api/v1/kube/pod/restart", summary="POST Pod Restart k8s Plan", tags=["PodKubernetes"])
 def get_kube_pod_restart(request: Request, request_data: postK8sRestartPodManager):
     data = request_data.dict()
     env = data.get("env")
@@ -282,13 +282,13 @@ def get_kube_pod_restart(request: Request, request_data: postK8sRestartPodManage
     return pod_restart_result
 
 
-@app.get("/v1/kube/pod/mock", summary="get Pod Mock k8s Plan", tags=["PodKubernetes"])
+@app.get("/api/v1/kube/pod/mock", summary="get Pod Mock k8s Plan", tags=["PodKubernetes"])
 def get_kube_mock_pod():
     from tools.config import k8sPodHeader
     return {"code": 20000, "total": 0, "data": [], "messages": "query data success", "status": True, "columns": k8sPodHeader}
 
 
-@app.post("/v1/kube/pod/", summary="Add POD K8S Plan", tags=["PodKubernetes"])
+@app.post("/api/v1/kube/pod/", summary="Add POD K8S Plan", tags=["PodKubernetes"])
 async def create_kube_pod(request: Request, request_data: postK8sPodManager):
     data = request_data.dict()
     if not all(data.get(field) for field in
@@ -299,7 +299,7 @@ async def create_kube_pod(request: Request, request_data: postK8sPodManager):
     return pod_create_result
 
 
-@app.put("/v1/kube/pod/", summary="Put POD K8S Plan", tags=["PodKubernetes"])
+@app.put("/api/v1/kube/pod/", summary="Put POD K8S Plan", tags=["PodKubernetes"])
 def update_kube_Pod(ReQuest: Request, request_data: putK8sPodManager):
     data = request_data.dict()
     if not all(data.get(field) for field in
@@ -310,7 +310,7 @@ def update_kube_Pod(ReQuest: Request, request_data: putK8sPodManager):
     return pod_update_result
 
 
-@app.post("/v1/k8s/deployment/plan/", summary="Add deployment App Plan", tags=["DeployKubernetes"])
+@app.post("/api/v1/k8s/deployment/plan/", summary="Add deployment App Plan", tags=["DeployKubernetes"])
 async def post_deploy_plan(request: Request, request_data: CreateDeployK8S) -> Dict[str, Any]:
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
@@ -329,7 +329,7 @@ async def post_deploy_plan(request: Request, request_data: CreateDeployK8S) -> D
     return deploy_instance_result
 
 
-@app.put("/v1/k8s/deployment/plan/", summary="Change deployment App Plan", tags=["DeployKubernetes"])
+@app.put("/api/v1/k8s/deployment/plan/", summary="Change deployment App Plan", tags=["DeployKubernetes"])
 async def put_deploy_plan(request: Request, request_data: UpdateDeployK8S):
     item_dict = request_data.dict()
     user_request_data = await request.json()
@@ -365,7 +365,7 @@ async def put_deploy_plan(request: Request, request_data: UpdateDeployK8S):
     return deploy_update_instance_result
 
 
-@app.get("/v1/k8s/deployment/like", summary="Get deployment like App Plan", tags=["DeployKubernetes"])
+@app.get("/api/v1/k8s/deployment/like", summary="Get deployment like App Plan", tags=["DeployKubernetes"])
 def get_app_name_like(app_name: str = Query(..., description="模糊查询名称"), page: int = Query(1, ge=1, description="页码"),
                       page_size: int = Query(10, ge=1, description="每页条数")):
     if not (app_name):
@@ -378,7 +378,7 @@ def get_app_name_like(app_name: str = Query(..., description="模糊查询名称
     result_data = query_search_like_deploy(app_name, page, page_size)
     return result_data
 
-@app.get("/v1/k8s/deployment/plan/", summary="Get deployment App Plan", tags=["DeployKubernetes"])
+@app.get("/api/v1/k8s/deployment/plan/", summary="Get deployment App Plan", tags=["DeployKubernetes"])
 def get_deploy_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000), env: Optional[str] = None,
                     cluster: Optional[str] = None, app_name: Optional[str] = None,
                     image: Optional[str] = None, ports: Optional[str] = None,
@@ -387,7 +387,7 @@ def get_deploy_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0,
     return result_data
 
 
-@app.delete("/v1/k8s/deployment/plan/", summary="Delete deployment App Plan", tags=["DeployKubernetes"])
+@app.delete("/api/v1/k8s/deployment/plan/", summary="Delete deployment App Plan", tags=["DeployKubernetes"])
 async def del_deploy_plan(request: Request, request_data: deleteDeployK8S):
     data = request_data.dict()
     user_request_data = await request.json()
@@ -408,7 +408,7 @@ async def del_deploy_plan(request: Request, request_data: deleteDeployK8S):
     return delete_instance_result
 
 
-@app.post("/v1/k8s/service/plan/", summary="Add Service App Plan", tags=["ServiceKubernetes"])
+@app.post("/api/v1/k8s/service/plan/", summary="Add Service App Plan", tags=["ServiceKubernetes"])
 async def post_service_plan(request: Request, request_data: CreateSvcK8S):
     item_dict = request_data.dict()
     user_request_data = await request.json()
@@ -423,7 +423,7 @@ async def post_service_plan(request: Request, request_data: CreateSvcK8S):
     return create_instance_result
 
 
-@app.put("/v1/k8s/service/plan/", summary="Change Service App Plan", tags=["ServiceKubernetes"])
+@app.put("/api/v1/k8s/service/plan/", summary="Change Service App Plan", tags=["ServiceKubernetes"])
 async def put_service_plan(request: Request, request_data: UpdateSvcK8S):
     data = request_data.dict()
     user_request_data = await request.json()
@@ -452,7 +452,7 @@ async def put_service_plan(request: Request, request_data: UpdateSvcK8S):
     return update_instance_result
 
 
-@app.get("/v1/k8s/service/plan/", summary="Get Service App Plan", tags=["ServiceKubernetes"])
+@app.get("/api/v1/k8s/service/plan/", summary="Get Service App Plan", tags=["ServiceKubernetes"])
 def get_service_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000), env: Optional[str] = None,
                      cluster_name: Optional[str] = None, namespace: Optional[str] = None,
                      svc_name: Optional[str] = None, selector_labels: Optional[str] = None,
@@ -463,7 +463,7 @@ def get_service_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0
     return result_data
 
 
-@app.get("/v1/k8s/service/all/plan/", summary="Get ALL Service App Plan", tags=["ServiceKubernetes"])
+@app.get("/api/v1/k8s/service/all/plan/", summary="Get ALL Service App Plan", tags=["ServiceKubernetes"])
 def get_all_service_plan(env: Optional[str], cluster_name: Optional[str], namespace: Optional[str]):
     if not (env and cluster_name and namespace):
         raise HTTPException(status_code=400, detail="Incorrect parameters")
@@ -471,7 +471,7 @@ def get_all_service_plan(env: Optional[str], cluster_name: Optional[str], namesp
     return result_data
 
 
-@app.get("/v1/k8s/service/svc-port/plan/", summary="Get ALL Service Port App Plan", tags=["ServiceKubernetes"])
+@app.get("/api/v1/k8s/service/svc-port/plan/", summary="Get ALL Service Port App Plan", tags=["ServiceKubernetes"])
 def get_all_service_port_plan(env: Optional[str], cluster_name: Optional[str], namespace: Optional[str], svc_name: Optional[str]):
     if not (env and cluster_name and namespace and svc_name):
         raise HTTPException(status_code=400, detail="Incorrect parameters")
@@ -479,7 +479,7 @@ def get_all_service_port_plan(env: Optional[str], cluster_name: Optional[str], n
     return result_data
 
 
-@app.delete("/v1/k8s/service/plan/", summary="Delete Service App Plan", tags=["ServiceKubernetes"])
+@app.delete("/api/v1/k8s/service/plan/", summary="Delete Service App Plan", tags=["ServiceKubernetes"])
 async def delete_service_plan(ReQuest: Request, request_data: deleteSvcK8S):
     svc_name = request_data.svc_name
     data = request_data.dict()
@@ -498,7 +498,7 @@ async def delete_service_plan(ReQuest: Request, request_data: deleteSvcK8S):
     return delete_instance_result
 
 
-@app.post("/v1/k8s/ingress/plan/", summary="Add Ingress App Plan", tags=["IngressKubernetes"])
+@app.post("/api/v1/k8s/ingress/plan/", summary="Add Ingress App Plan", tags=["IngressKubernetes"])
 async def post_ingress_plan(ReQuest: Request, request_data: CreateIngressK8S):
     user_request_data = await ReQuest.json()
     env_name = request_data.env
@@ -529,7 +529,7 @@ async def post_ingress_plan(ReQuest: Request, request_data: CreateIngressK8S):
     return create_instance_result
 
 
-@app.put("/v1/k8s/ingress/plan/", summary="Change Ingress App Plan", tags=["IngressKubernetes"])
+@app.put("/api/v1/k8s/ingress/plan/", summary="Change Ingress App Plan", tags=["IngressKubernetes"])
 async def put_ingress_plan(request: Request, data: UpdateIngressK8S):
     item_dict = data.dict()
     user_request_data = await request.json()
@@ -550,7 +550,7 @@ async def put_ingress_plan(request: Request, data: UpdateIngressK8S):
     return update_instance_result
 
 
-@app.get("/v1/k8s/ingress/plan/", summary="Get Ingress App Plan", tags=["IngressKubernetes"])
+@app.get("/api/v1/k8s/ingress/plan/", summary="Get Ingress App Plan", tags=["IngressKubernetes"])
 def get_ingress_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000), env: Optional[str] = None,
                      cluster_name: Optional[str] = None, namespace: Optional[str] = None,
                      ingress_name: Optional[str] = None, host: Optional[str] = None,
@@ -561,7 +561,7 @@ def get_ingress_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0
     return result_data
 
 
-@app.get("/v1/k8s/sys/ns-by-ingress/", summary="Get sys Ingress App Plan", tags=["IngressKubernetesSys"])
+@app.get("/api/v1/k8s/sys/ns-by-ingress/", summary="Get sys Ingress App Plan", tags=["IngressKubernetesSys"])
 def get_ns_by_ingress_plan(env: Optional[str] = None, cluster_name: Optional[str] = None,
                            namespace: Optional[str] = None):
     k8s_instance = k8sIngressManager(k8s_instance, namespace)
@@ -569,7 +569,7 @@ def get_ns_by_ingress_plan(env: Optional[str] = None, cluster_name: Optional[str
     return ns_result
 
 
-@app.get("/v1/k8s/sys/ns-all-ingress/", summary="Get sys Ingress App Plan", tags=["IngressKubernetesSys"])
+@app.get("/api/v1/k8s/sys/ns-all-ingress/", summary="Get sys Ingress App Plan", tags=["IngressKubernetesSys"])
 @query_kube_db_env_cluster_wrapper()
 def get_ns_all_ingress_plan(k8s_instance: k8sIngressManager, env: Optional[str] = None,
                             cluster_name: Optional[str] = None):
@@ -592,7 +592,7 @@ async def delete_ingress_plan(request: Request, request_data: deleteIngressK8S):
     return delete_instance_result
 
 
-@app.post("/user/login/", summary="用户登录验证，如果成功返回用户 token，否则返回 HTTP 401 错误", tags=["sys-login-user"])
+@app.post("/api/user/login/", summary="用户登录验证，如果成功返回用户 token，否则返回 HTTP 401 错误", tags=["sys-login-user"])
 def login(request: Request, request_data: UserManager):
     data = request_data.dict()
     username = data.get("username")
@@ -619,7 +619,7 @@ def login(request: Request, request_data: UserManager):
     return data
 
 
-@app.get("/user/info", summary="验证 JWT token，如果验证成功，返回用户名", tags=["sys-login-user"])
+@app.get("/api/user/info", summary="验证 JWT token，如果验证成功，返回用户名", tags=["sys-login-user"])
 def protected(token):
     if not (token):
         raise HTTPException(status_code=400, detail="Missing parameter")
@@ -627,12 +627,12 @@ def protected(token):
     return UserService.protected_token(token)
 
 
-@app.post("/user/logout", summary="get logout user to  jwt token ", tags=["sys-login-user"])
+@app.post("/api/user/logout", summary="get logout user to  jwt token ", tags=["sys-login-user"])
 def logout():
     return UserService.logout_msg()
 
 
-@app.post("/user/add", summary="add user  ", tags=["sys-users"])
+@app.post("/api/user/add", summary="add user  ", tags=["sys-users"])
 async def useradd(request: Request, request_data: UserManager):
     data = request_data.dict()
     user_request_data = await request.json()
@@ -646,13 +646,13 @@ async def useradd(request: Request, request_data: UserManager):
     return user_result
 
 
-@app.get("/user/query", summary="query user", tags=["sys-users"])
+@app.get("/api/user/query", summary="query user", tags=["sys-users"])
 def get_deploy_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000)):
     result_data = query_users(page, page_size)
     return result_data
 
 
-@app.delete("/user/delete", summary="Delete users Plan", tags=["sys-users"])
+@app.delete("/api/user/delete", summary="Delete users Plan", tags=["sys-users"])
 async def delete_users(request: Request, request_data: deleteUser):
     data = request_data.dict()
     user_request_data = await request.json()
@@ -669,7 +669,7 @@ async def delete_users(request: Request, request_data: deleteUser):
     return user_result
 
 
-@app.put("/user/update", summary="User Update Plan", tags=["sys-users"])
+@app.put("/api/user/update", summary="User Update Plan", tags=["sys-users"])
 async def put_user_update(request: Request, request_data: updateUserManager):
     data = request_data.dict()
     user_request_data = await request.json()
@@ -754,8 +754,6 @@ async def queryHarbor(project_name: Optional[str], app_name: Optional[str], repo
     return result
 
 
-
-
 if __name__ == "__main__":
     setup_logging(log_file_path="fastapi.log", project_root="./logs", message="startup fastapi")
-    uvicorn.run(app, host="0.0.0.0", port=8888, log_level="debug")
+    uvicorn.run(app, host="127.0.0.1", port=8888, log_level="debug")

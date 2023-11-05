@@ -14,7 +14,7 @@ function add_sys_admin_user()
 url="http://127.0.0.1:8888"
 curl --location --request POST "${url}/api/user/add" \
 --header 'Content-Type: application/json' \
---data-raw '{
+--data '{
 "username": "admin",
 "password": "11111111"
 }'

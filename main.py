@@ -578,7 +578,7 @@ def get_ns_all_ingress_plan(k8s_instance: k8sIngressManager, env: Optional[str] 
     return ns_result
 
 
-@app.delete("/v1/k8s/ingress/plan/", summary="Delete Ingress App Plan", tags=["IngressKubernetes"])
+@app.delete("/api/v1/k8s/ingress/plan/", summary="Delete Ingress App Plan", tags=["IngressKubernetes"])
 async def delete_ingress_plan(request: Request, request_data: deleteIngressK8S):
     data = request_data.dict()
     user_request_data = await request.json()

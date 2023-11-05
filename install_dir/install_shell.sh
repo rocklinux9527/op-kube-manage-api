@@ -87,7 +87,7 @@ case $1 in
         checkDocker
      ;;
     *)
-        echo -e "\033[32m 部署DNS web服务参数如下 \033[0m"
+        echo -e "\033[32m 部署k8s web服务参数如下 \033[0m"
         echo -e "\033[32m deploy_env_clear \033[0m 部署前环境清理"
         echo -e "\033[32m deploy_check \033[0m 服务部署基础环境检查"
         echo -e "\033[32m deploy_op-kube-manage-all\033[0m op-kube-manage-all 环境部署"

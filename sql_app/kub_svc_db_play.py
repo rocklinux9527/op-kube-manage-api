@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from sql_app.database import engine
 from sqlalchemy import and_
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-from tools.config import setup_logging
+from tools.config import setup_logger
 from fastapi.encoders import jsonable_encoder
 import os
 HERE = os.path.abspath(__file__)

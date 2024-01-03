@@ -6,7 +6,7 @@ from sqlalchemy import and_
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 from fastapi.encoders import jsonable_encoder
 from tools.config import k8sDeployHeader
-from tools.config import setup_logging
+from tools.config import setup_logger
 import os
 HERE = os.path.abspath(__file__)
 HOME_DIR = os.path.split(os.path.split(HERE)[0])[0]

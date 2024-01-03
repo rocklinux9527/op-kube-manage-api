@@ -7,7 +7,7 @@ from typing import Optional
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
-from tools.config import setup_logging
+from tools.config import setup_logger
 import os
 HERE = os.path.abspath(__file__)
 HOME_DIR = os.path.split(os.path.split(HERE)[0])[0]
@@ -127,7 +127,8 @@ def query_kube_config(page: int = 1, page_size: int = 10, env: Optional[str] = N
         total = query.count()
         return {"code": 20000, "total": total, "data": jsonable_encoder(data), "messages": "query data success", "status": True, "columns": k8sClusterHeader}
     except Exception as e:
-        setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
+        logger = setup_logger()
+        logger.info("query kube config error  ", extra={'props': {"message": str(e)}})
         return {"code": 50000, "total": 0, "data": "query data failure ", "messages": str(e), "status": True, "columns": k8sClusterHeader}
 
 def query_kube_db_env_cluster_all(env, cluster_name):
@@ -152,9 +153,12 @@ def query_kube_db_env_all():
         session = SessionLocal()
         query = session.query(KubeK8sConfig.env).distinct().all()
         envList = [row[0] for row in query]
+        logger = setup_logger()
+        logger.info("ingress sucess")
         return {"code": 20000, "total": len(envList), "data": envList, "messages": "query data success", "status": True}
     except Exception as e:
-        setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
+        logger = setup_logger()
+        logger.info(str(e))
         return {"code": 50000, "total": 0, "data": [], "messages": f"Error occured: {str(e)}", "status": False}
 
 def query_kube_db_cluster_all():
@@ -164,7 +168,8 @@ def query_kube_db_cluster_all():
         clusterList = [row[0] for row in query]
         return {"code": 20000, "total": len(clusterList), "data": clusterList, "messages": "query data success", "status": True}
     except Exception as e:
-        setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
+        logger = setup_logger()
+        logger.info(str(e))
         return {"code": 50000, "total": 0, "data": [], "messages": f"Error occured: {str(e)}", "status": False}
 
 def query_kube_db_env_cluster_wrapper():

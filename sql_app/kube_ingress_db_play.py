@@ -5,7 +5,7 @@ from sql_app.database import engine
 from sqlalchemy import and_
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-from tools.config import setup_logging,k8sIngressHeader
+from tools.config import setup_logger,k8sIngressHeader
 from fastapi.encoders import jsonable_encoder
 import os
 HERE = os.path.abspath(__file__)
@@ -143,7 +143,8 @@ def query_kube_ingres(page, page_size, env, cluster_name, namespace, ingress_nam
                 "messages": "query data success", "status": True,"columns": k8sIngressHeader}
     except Exception as e:
         session.rollback()
-        setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
+        logger = setup_logger()
+        logger.info("query kube ingress error  ", extra={'props': {"message": str(e)}})
         return {"code": 50000, "total": 0, "data": "query data failure ", "messages": str(e), "status": True}
     finally:
         session.close()

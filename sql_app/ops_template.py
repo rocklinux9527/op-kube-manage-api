@@ -8,7 +8,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 from fastapi.encoders import jsonable_encoder
 from tools.config import templateHeader
 # 日志配置
-from tools.config import setup_logging
+from tools.config import setup_logger
 import os
 HERE = os.path.abspath(__file__)
 HOME_DIR = os.path.split(os.path.split(HERE)[0])[0]
@@ -78,7 +78,8 @@ def query_template(page: int = 1, page_size: int = 10):
         return {"code": 20000, "total": total, "data": jsonable_encoder(data), "messages": "query success", "status": True,
                 "columns": templateHeader}
     except Exception as e:
-        setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
+        logger = setup_logger()
+        logger.info("query template  error  ", extra={'props': {"message": str(e)}})
         return {"code": 50000, "total": 0, "data": "query data failure", "messages": str(e), "status": True,
                 "columns": templateHeader}
     finally:

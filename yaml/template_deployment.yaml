@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name:  template-app
+  labels:
+    app:  template-app
+spec:
+  minReadySeconds: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  replicas:  1
+  selector:
+    matchLabels:
+      app: template-app
+  template:
+    metadata:
+      labels:
+        app: template-app
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - template-app
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+      initContainers:
+        - command:
+            - sh
+            - -c
+            - |
+              sysctl -w net.core.somaxconn=65535
+              sysctl -w net.ipv4.ip_local_port_range="10000 65535"
+              sysctl -w net.ipv4.tcp_tw_reuse=1
+              sysctl -w net.ipv4.tcp_fin_timeout=15
+              sysctl -w fs.file-max=1048576
+          image: busybox:stable-glibc
+          imagePullPolicy: IfNotPresent
+          name: setsysctl
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+      containers:
+        - name: ##APPNAME##
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  [
+                    "/bin/sh",
+                    "-c",
+                    "until nc -z -w 2 127.0.0.1 80 && echo app grace down ok; do
+                      sleep 2;
+                    done;",
+                  ]
+          image: ##IMAGE##
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            failureThreshold: 6
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            tcpSocket:
+              port: 80
+      terminationGracePeriodSeconds: 30

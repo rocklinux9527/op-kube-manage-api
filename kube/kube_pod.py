@@ -1,4 +1,4 @@
-from tools.config import setup_logging, k8sPodHeader
+from tools.config import setup_logger, k8sPodHeader
 from kubernetes import client, config
 import datetime
 
@@ -50,15 +50,17 @@ class PodManager:
             self.apps_api.delete_namespaced_pod(pod_name, self.namespace)
             # 记录日志
             message = f"Pod {pod_name} in namespace {self.namespace} deleted successfully!"
-            setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=message)
+            logger = setup_logger()
+            logger.info("kubectl delete pod {msg} info".format(message))
             result = {"code": 20000, "total": 1, "data": pod_name + "create success", "messages": "pod delete  data success",
                       "status": True}
         except Exception as e:
             # 记录日志
             message = f"Failed to delete Pod {pod_name} in namespace {self.namespace}: {e}"
-            setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=message)
+            logger = setup_logger()
+            logger.info("kubectl delete pod {msg} info".format(message))
             result = {"code": 50000, "total": 1, "data": "", "messages": str(e), "status": True}
-            return result
+        return result
 
     def restart_pod(self, pod_name):
         try:
@@ -68,20 +70,23 @@ class PodManager:
             if pod_status.status.phase == "Running":
                 delete_status = self.delete_pod(pod_name)
                 message = f"Pod {pod_name} in namespace {self.namespace} restarted successfully!"
-                setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=message)
+                logger = setup_logger()
+                logger.info("kubectl restart pod {msg} info".format(message))
                 result = {"code": 20000, "total": 1, "data": pod_name + "restart success",
                           "messages": "pod restart  data success", "status": True}
             else:
                 # 记录日志
                 message = f"Pod {pod_name} in namespace {self.namespace} is not running, cannot be restarted."
-                setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=message)
+                logger = setup_logger()
+                logger.info("kubectl restart pod {msg} info".format(message))
                 result = {"code": 20000, "total": 0, "data": "", "messages": "pod is not running, cannot be restarted",
                           "status": True}
             return result
         except Exception as e:
             # 记录日志
             message = f"Failed to restart Pod {pod_name} in namespace {self.namespace}: {e}"
-            setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=message)
+            logger = setup_logger()
+            logger.info("kubectl restart pod {msg} info".format(message))
             result = {"code": 50000, "total": 0, "data": str(e), "messages": "pod restarted failure", "status": True}
             return result
 
@@ -99,12 +104,14 @@ class PodManager:
             self.apps_api.patch_namespaced_pod(pod_name, self.namespace, pod)
             # 记录日志
             message = f"Container {container_name} in Pod {pod_name} of namespace {self.namespace} updated successfully to image {image}!"
-            setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=message)
+            logger = setup_logger()
+            logger.info("kubectl update  pod {msg} info".format(message))
             result = {"code": 20000, "total": 0, "data": "", "messages": "update pod success", "status": True}
         except Exception as e:
             # 记录日志
             message = f"Failed to update container {container_name} in Pod {pod_name} of namespace {self.namespace} to image {image}: {e}"
-            setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=message)
+            logger = setup_logger()
+            logger.info("kubectl update  pod {msg} info".format(message))
             result = {"code": 50000, "total": 0, "data": str(e), "messages": "pod update failure", "status": True}
         return result
 
@@ -202,7 +209,8 @@ class PodManager:
                      "cluster": cluster_name})
             return result
         except Exception as e:
-            message = f"Failed to delete Pod  in namespace {self.namespace}: {e}"
-            setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=message)
+            message = f"get_pods {self.namespace}: {e}"
+            logger = setup_logger()
+            logger.info("kubectl get  pod {msg} info".format(message))
             result = {"code": 50000, "total": 0, "data": [], "messages": f"query data failed: {e}", "status": False}
             return result

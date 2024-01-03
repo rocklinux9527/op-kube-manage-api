@@ -1,8 +1,9 @@
 # https://github.com/kubernetes-client/python/tree/master/kubernetes/docs
 # from logging
 
-import datetime
-import random
+
+import json_logging
+
 from typing import Optional, Dict, Any
 
 # login token
@@ -79,7 +80,8 @@ from sql_app.login_users import query_users, query_users_name
 from sql_app.ops_log_db_play import query_operate_ops_log
 # ops temple
 from sql_app.ops_template import query_template
-from tools.config import setup_logging
+from tools.config import setup_logger
+
 from tools.harbor_tools_v2 import check_harbor, harbor_main_aio
 
 # import kubeConfigService
@@ -92,7 +94,13 @@ app = FastAPI(
     description="kubernetes管理工具",
     version="0.0.1",
 )
+
+# 初始化和fastapi 关联
+json_logging.init_fastapi(enable_json=True)
+json_logging.init_request_instrument(app)
 router = APIRouter()
+
+
 
 origins = ["*", "127.0.0.1:80"]
 app.add_middleware(
@@ -137,7 +145,6 @@ async def checkHarbor(host: Optional[str], version: Optional[str] = "v2"):
 
 @app.get("/api/check-kube-cluster", summary="K8S  kube cluster check ", tags=["ping"])
 async def check_k8s_kube_cluster(env: Optional[str], cluster_name: Optional[str]):
-    versionList = ["v1", "v2"]
     if not (cluster_name, env):
         return {"code": 50000, "data": "", "message": f'需要传环境和集群标识', "status": False}
     k8s_cluster_instance = kubeClusterCheckService()
@@ -564,7 +571,7 @@ def get_ingress_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0
 @app.get("/api/v1/k8s/sys/ns-by-ingress/", summary="Get sys Ingress App Plan", tags=["IngressKubernetesSys"])
 def get_ns_by_ingress_plan(env: Optional[str] = None, cluster_name: Optional[str] = None,
                            namespace: Optional[str] = None):
-    k8s_instance = k8sIngressManager(k8s_instance, namespace)
+    k8s_instance = k8sIngressManager(cluster_name,namespace)
     ns_result = k8s_instance.get_kube_ingress_by_name()
     return ns_result
 
@@ -755,5 +762,6 @@ async def queryHarbor(project_name: Optional[str], app_name: Optional[str], repo
 
 
 if __name__ == "__main__":
-    setup_logging(log_file_path="fastapi.log", project_root="./logs", message="startup fastapi")
+    logger = setup_logger()
+    logger.info("fastapi logging start success")
     uvicorn.run(app, host="127.0.0.1", port=8888, log_level="debug")

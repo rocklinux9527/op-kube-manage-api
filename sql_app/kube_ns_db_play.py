@@ -8,7 +8,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 from fastapi.encoders import jsonable_encoder
 
 # 日志配置
-from tools.config import setup_logging
+from tools.config import setup_logger
 import os
 HERE = os.path.abspath(__file__)
 HOME_DIR = os.path.split(os.path.split(HERE)[0])[0]
@@ -61,7 +61,8 @@ def query_ns(ns_name, page: int = 1, page_size: int = 10):
                 "columns": k8sNameSpaceHeader}
     except Exception as e:
         print(e)
-        setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
+        logger = setup_logger()
+        logger.info("query kube ns error  ", extra={'props': {"message": str(e)}})
         return {"code": 50000, "total": 0, "data": "query data failure", "messages": str(e), "status": True,
                 "columns": k8sNameSpaceHeader}
     finally:
@@ -83,7 +84,8 @@ def query_ns_any(env_name, cluster_name, namespace_name):
         else:
             return {"code": 0, "data": [i.to_dict for i in results], "status": True, "columns": k8sNameSpaceHeader}
     except Exception as e:
-        setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
+        logger = setup_logger()
+        logger.info(str(e))
         return {"code": 0, "total": 0, "data": "query ns any data failure", "messages": str(e), "status": True,
                 "columns": k8sNameSpaceHeader}
     finally:
@@ -101,7 +103,8 @@ def query_kube_db_ns_all():
         namespaceList = [row[0] for row in query]
         return {"code": 20000, "total": len(namespaceList), "data": namespaceList, "messages": "query data ns success", "status": True}
     except Exception as e:
-        setup_logging(log_file_path="fastapi.log", project_root=LOG_DIR, message=str(e))
+        logger = setup_logger()
+        logger.info(str(e))
         return {"code": 50000, "total": 0, "data": [], "messages": f"Error occured: {str(e)}", "status": False}
     finally:
         session.commit()

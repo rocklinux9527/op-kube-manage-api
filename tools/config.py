@@ -1,7 +1,10 @@
 # 日志配置
 import sys
-from loguru import logger
 import os
+from datetime import datetime
+import logging
+from logging.handlers import TimedRotatingFileHandler
+
 
 """
 1.nacos 配置信息
@@ -28,7 +31,6 @@ k8sClusterHeader = [
     {"name": "client_key_path", "alias": "证书路径"}
 ]
 
-
 # K8S 命名空间 前端显示表头
 k8sNameSpaceHeader = [
     {"name": "env", "alias": "环境"},
@@ -46,7 +48,6 @@ usersHeader = [
     {"name": "create_time", "alias": "创建时间"}
 ]
 
-
 # 模板 前端显示表头
 templateHeader = [
     {"name": "id", "alias": "标识"},
@@ -57,7 +58,6 @@ templateHeader = [
     {"name": "remark", "alias": "备注"},
     {"name": "create_time", "alias": "创建时间"}
 ]
-
 
 # K8S Pod 前端显示表头
 k8sPodHeader = [
@@ -74,8 +74,6 @@ k8sPodHeader = [
     {"name": "restarts", "alias": "重启次数"},
     {"name": "uptime_str", "alias": "运行时长"}
 ]
-
-
 
 # K8S deploy 前端显示表头
 k8sDeployHeader = [
@@ -116,32 +114,26 @@ k8sIngressHeader = [
 ]
 
 
-def setup_logging(log_file_path: str = "./fastapi.log", project_root: str = "",message=""):
+def access_log_filename():
     """
-    设置日志输出路径和标准输出方式，并将日志写入指定文件
-    :param log_file_path: 日志输出文件路径
-    :param project_root: 项目根目录
-    :return: None
+    1.日志输出文件格式设置
+    Returns:
+
     """
-    # 判断日志目录是否存在，不存在则创建
-    logs_dir = os.path.join(project_root)
-    if not os.path.exists(logs_dir):
-        os.makedirs(logs_dir)
-    # 设置日志输出格式和级别
-    logger.remove()
-    logger.add(
-        sink=os.path.join(project_root, log_file_path),
-        format="{time:YYYY-MM-DD HH:mm:ss} {level} {message}",
-        level="INFO",
-        rotation="10 MB",
-        compression="zip"
-    )
-    logger.add(
-        sink=sys.stdout,
-        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-        level="DEBUG",
-        colorize=True
-    )
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    log_dir = os.path.join(root_dir, "logs")
+    if "tools" in log_dir:
+        log_dir = log_dir.replace("/tools", "")
+    formatted_time = (datetime.now().strftime("%Y%m%d%H"))  # cst 时间
+    return os.path.join(log_dir, f"op-kube-manage-api.log")
 
-    logger.info(f"Logging initialized. Log file: {os.path.join(project_root, log_file_path)},{message}".format(message))
 
+def setup_logger():
+    """
+    初始化日志记录器
+    """
+    logger = logging.getLogger("op-kube-manage-api")
+    logger.setLevel(logging.DEBUG)
+    log_handler = TimedRotatingFileHandler(access_log_filename(), when="H", interval=1, backupCount=5, utc=False)
+    logger.addHandler(log_handler)
+    return logger

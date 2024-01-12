@@ -212,6 +212,31 @@ class Template(Base):
                 "remark": self.remark
                 }
 
+class AppTemplate(Base):
+    __tablename__ = 'op_kube_manage_app_template'
+    id = Column(Integer, primary_key=True)
+    name = Column(String(64), nullable=False)
+    used = Column(String(256), nullable=False)
+    cluster = Column(String(64), nullable=False)
+    env = Column(String(32), nullable=False)
+    deployment_id = Column(String(128), nullable=False)
+    service_id = Column(String(128), nullable=False)
+    ingress_id = Column(String(128), nullable=False)
+    uptime_time = Column(String(64), comment="更新时间")
+    create_time = Column(DateTime, server_default=func.now(), comment="创建时间")
+    @property
+    def to_dict(self):
+        return {"id": self.id,
+                "name": self.name,
+                "used": self.used,
+                "cluster": self.cluster,
+                "env": self.env,
+                "deployment_id": self.deployment_id,
+                "service_id":self.service_id,
+                "ingress_id": self.ingress_id,
+                "uptime_time": self.uptime_time
+                }
+
 class DeployNsData(Base):
     __tablename__ = "op_kube_manage_ns_data"
     id = Column(Integer, primary_key=True)

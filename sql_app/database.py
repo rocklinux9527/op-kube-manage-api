@@ -2,9 +2,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-DB_HOST = "ops-kube_manage-mysql"
+DB_HOST = "ops-kube_manage-mysql" 
 DB_USER = "root"
-DB_PASSWD = "123456"
+DB_PASSWD = "root"
 DB_PORT = 3306
 DB_NAME = "op_kube_manage_api"
 

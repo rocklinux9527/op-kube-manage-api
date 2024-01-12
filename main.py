@@ -37,6 +37,10 @@ from schemas.k8s import createNameSpace
 from schemas.k8s import postK8sRestartPodManager, postK8sPodManager, putK8sPodManager
 # 导入系统模板数据结构
 from schemas.template import templateManager, UpdateTemplateManager, deleteTemplateManager
+
+# 导入App系统模板数据结构
+from schemas.app_template import AddAppTemplateManager,UpdateAppTemplateManager,deleteAppTemplateManager
+
 # 导入系统用户数据结构
 from schemas.user import UserManager, updateUserManager, deleteUser
 from service.kube_config import kubeConfigService
@@ -61,6 +65,9 @@ from service.kueb_namespace import kubeNameSpaceService
 from service.sh_ws import websocket_handler, terminal_html
 # import template service
 from service.sys_template import TemplateService
+
+# import app template service
+from service.sys_app_template import AppTemplateService
 # import user service
 from service.sys_user import UserService
 from sql_app.database import engine
@@ -79,7 +86,9 @@ from sql_app.login_users import query_users, query_users_name
 # db ops deploy and kube config
 from sql_app.ops_log_db_play import query_operate_ops_log
 # ops temple
-from sql_app.ops_template import query_template
+from sql_app.ops_template import query_template,queryTemplateType
+from sql_app.ops_app_template import insert_db_app_template,updata_app_template,delete_db_app_template,query_Template_app_name,query_app_template
+
 from tools.config import setup_logger
 
 from tools.harbor_tools_v2 import check_harbor, harbor_main_aio
@@ -98,6 +107,8 @@ app = FastAPI(
 # 初始化和fastapi 关联
 json_logging.init_fastapi(enable_json=True)
 json_logging.init_request_instrument(app)
+
+
 router = APIRouter()
 
 
@@ -691,13 +702,15 @@ async def put_user_update(request: Request, request_data: updateUserManager):
 
 
 @app.get("/api/template", summary="query template", tags=["sys-template"])
-def get_template_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000)):
-    result_data = query_template(page, page_size)
+def get_template_plan(q_type: str = "all", page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000)):
+    if q_type == "all":
+        result_data = query_template(page, page_size)
+    else:
+        result_data = queryTemplateType(q_type, page, page_size)
     return result_data
 
-
 @app.post("/api/template", summary="模板自定义模板", tags=["sys-template"])
-def save_template(request: Request, request_data: templateManager):
+def save_template(request_data: templateManager):
     data = request_data.dict()
     name = data.get("name")
     content = data.get("content")
@@ -706,8 +719,8 @@ def save_template(request: Request, request_data: templateManager):
     remark = data.get("remark")
     if not (name and content and type and language and remark):
         raise HTTPException(status_code=400, detail="Missing parameter")
-    temple_instance = TemplateService()
-    result = temple_instance.add_controller_template(name, content, language, type, remark)
+    app_temple_instance = AppTemplateService()
+    result = app_temple_instance.add_controller_app_template(name, content, language, type, remark)
     return result
 
 
@@ -723,8 +736,8 @@ async def put_temple_update(request: Request, request_data: UpdateTemplateManage
     ID = data.get("id")
     if not (ID and name and content and type and language and remark):
         raise HTTPException(status_code=400, detail="Missing parameter")
-    temple_instance = TemplateService()
-    result = temple_instance.update_controller_template(ID, name, content, language, type, remark, user_request_data)
+    app_temple_instance = AppTemplateService()
+    result = app_temple_instance.update_controller_app_template(ID, name, content, language, type, remark, user_request_data)
     return result
 
 
@@ -739,10 +752,9 @@ async def delete_temple(request: Request, request_data: deleteTemplateManager):
     ID = data.get("id")
     if not (ID and name):
         raise HTTPException(status_code=400, detail="Missing parameter")
-    temple_instance = TemplateService()
-    result = temple_instance.delete_controller_template(ID, name, content, language, type, remark, user_request_data)
+    app_temple_instance = AppTemplateService()
+    result = app_temple_instance.delete_controller_app_template(ID, name, content, language, type, remark, user_request_data)
     return result
-
 
 @app.get("/api/template/download/", summary="template download  Plan", tags=["sys-template"])
 async def download_file(name: Optional[str], language: Optional[str]):
@@ -752,6 +764,65 @@ async def download_file(name: Optional[str], language: Optional[str]):
     result = temple_instance.download_file_controller_template(name, language)
     return result
 
+
+@app.get("/api/app/template", summary="query app template", tags=["sys-app-template"])
+def get_app_template_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000)):
+    return query_app_template(page, page_size)
+
+@app.post("/api/app/template", summary="app模板模板", tags=["sys-app-template"])
+async def save_app_template(request_data: AddAppTemplateManager):
+    """
+    1.检查是否有任何必需的参数缺失.
+    2.初始化一个空列表以存储转换后的数据.
+    3.遍历 test、pre 和 prod 字典
+    4.创建一个新字典，包含 "env" 键和对应 item_data 的值
+
+    :param request_data:
+    :return:
+    """
+    if not all(request_data.dict().values()):
+        raise HTTPException(status_code=400, detail="Missing parameter")
+    transformed_data = []
+    for env, item_data in [("test", request_data.test), ("pre", request_data.pre), ("prod", request_data.prod)]:
+        new_data = {"env": env, **item_data.dict()}
+        transformed_data.append(new_data)
+    resultAppTemplateData = AppTemplateService.save_data_to_database(transformed_data)
+    return resultAppTemplateData
+    # #result = app_temple_instance.add_controller_app_template(name, content, language, type, remark)
+    # return {"code": 20000,"data":"success"}
+
+
+@app.put("/api/app/template", summary="App Template Update Plan", tags=["sys-app-template"])
+async def put_temple_app_update(request: Request, request_data: UpdateAppTemplateManager):
+    data = request_data.dict()
+    user_request_data = await request.json()
+    name = data.get("name")
+    content = data.get("content")
+    type = data.get("t_type")
+    language = data.get("language")
+    remark = data.get("remark")
+    ID = data.get("id")
+    if not (ID and name and content and type and language and remark):
+        raise HTTPException(status_code=400, detail="Missing parameter")
+    app_temple_instance = AppTemplateService()
+    result = app_temple_instance.update_controller_app_template(ID, name, content, language, type, remark, user_request_data)
+    return result
+
+
+@app.delete("/api/app/template", summary="App Template Delete Plan", tags=["sys-app-template"])
+async def delete_app_temple(request: Request, request_data: deleteAppTemplateManager):
+    data = request_data.dict()
+    user_request_data = await request.json()
+    name = data.get("name")
+    content = data.get("content")
+    language = data.get("language")
+    remark = data.get("remark")
+    ID = data.get("id")
+    if not (ID and name):
+        raise HTTPException(status_code=400, detail="Missing parameter")
+    app_temple_instance = AppTemplateService()
+    result = app_temple_instance.delete_controller_app_template(ID, name, content, language, type, remark, user_request_data)
+    return result
 
 @app.get("/api/image", summary="images  query", tags=["sys-image"])
 async def queryHarbor(project_name: Optional[str], app_name: Optional[str], repo_type: Optional[str] = None):
@@ -764,4 +835,4 @@ async def queryHarbor(project_name: Optional[str], app_name: Optional[str], repo
 if __name__ == "__main__":
     logger = setup_logger()
     logger.info("fastapi logging start success")
-    uvicorn.run(app, host="127.0.0.1", port=8888, log_level="debug")
+    uvicorn.run(app, host="0.0.0.0", port=8080, log_level="debug")

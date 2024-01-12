@@ -2,6 +2,7 @@ import subprocess
 import sys
 import yaml
 
+
 class KubectlApplyExecutor:
     def __init__(self, src_file_path, dest_file_path, name=None, namespace='default', kubeconfig=None):
         """
@@ -215,5 +216,7 @@ def exec_kube_main(src_file_path, dest_file_path, namespace="default", name=None
     else:
         return kubectl_executor.execute_kubectl_apply()
 
-rest = exec_kube_main("./yaml/template_deployment.yaml","./yaml/nginx_new.yaml", "ops")
+
+rest = exec_kube_main("./yaml/template_deployment.yaml",
+                      "./yaml/nginx_new.yaml", "ops")
 print(rest)

@@ -23,3 +23,5 @@ class deleteTemplateManager(BaseModel):
     """用户模板删除模型"""
     id: str
     name: str
+
+

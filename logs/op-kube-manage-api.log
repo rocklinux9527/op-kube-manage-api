@@ -1,2 +1,0 @@
-{"written_at": "2024-01-02T05:48:57.825Z", "written_ts": 1704174537825316000, "msg": "fastapi logging start success", "type": "log", "logger": "op-kube-manage-api", "thread": "MainThread", "level": "INFO", "module": "main", "line_no": 766, "correlation_id": "-"}
-{"written_at": "2024-01-02T05:49:29.328Z", "written_ts": 1704174569328070000, "msg": "fastapi logging start success", "type": "log", "logger": "op-kube-manage-api", "thread": "MainThread", "level": "INFO", "module": "main", "line_no": 766, "correlation_id": "-"}

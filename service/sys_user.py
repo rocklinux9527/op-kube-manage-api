@@ -35,7 +35,7 @@ class UserService():
             "bob": ldap_salted_sha1.hash("bob_password"),
         }
         if self.username in users:
-            if ldap_salted_sha1.verify(self, password, users[self.username]):
+            if ldap_salted_sha1.verify(self, self.password, users[self.username]):
                 return True
         return False
 

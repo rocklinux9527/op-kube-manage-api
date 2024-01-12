@@ -50,14 +50,26 @@ usersHeader = [
 
 # 模板 前端显示表头
 templateHeader = [
-    {"name": "id", "alias": "标识"},
+    # {"name": "id", "alias": "标识"},
     {"name": "name", "alias": "名称"},
-    {"name": "t_type", "alias": "类型"},
-    {"name": "content", "alias": "内容"},
-    {"name": "language", "alias": "语言"},
-    {"name": "remark", "alias": "备注"},
+    # {"name": "t_type", "alias": "类型"},
+    # {"name": "content", "alias": "内容"},
+    # {"name": "language", "alias": "语言"},
+    {"name": "remark", "alias": "用途"},
     {"name": "create_time", "alias": "创建时间"}
 ]
+
+
+# app模板 前端显示表头
+appTemplateHeader = [
+    # {"name": "id", "alias": "标识"},
+    {"name": "name", "alias": "名称"},
+    {"name": "used", "alias": "用途"},
+    {"name": "uptime_time", "alias": "更新时间"},
+    {"name": "create_time", "alias": "创建时间"}
+]
+# 定义支持模版查询的类型
+typeTemplateList = ["ingress", "service","deployment","dockerfile"]
 
 # K8S Pod 前端显示表头
 k8sPodHeader = [
@@ -125,6 +137,7 @@ def access_log_filename():
     if "tools" in log_dir:
         log_dir = log_dir.replace("/tools", "")
     formatted_time = (datetime.now().strftime("%Y%m%d%H"))  # cst 时间
+    print(os.path.join(log_dir, f"op-kube-manage-api.log"))
     return os.path.join(log_dir, f"op-kube-manage-api.log")
 
 

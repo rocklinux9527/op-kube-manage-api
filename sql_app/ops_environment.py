@@ -154,7 +154,7 @@ def query_app_environment(page: int = 1, page_size: int = 10):
     try:
         data = query.limit(page_size).offset((page - 1) * page_size).all()
         total = query.count()
-        return {"code": 20000, "total": total, "data": jsonable_encoder(data), "messages": "query success",
+        return {"code": 20000, "total": total, "data": [i.to_dict for i in data], "messages": "query success",
                 "status": True,
                 "columns": environmentHeader}
 

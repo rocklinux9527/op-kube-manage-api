@@ -72,7 +72,7 @@ class AppEnvironmentService:
     @classmethod
     def delete_controller_app_environment(cls, ID: int, name: str, user_request_data: Dict[str, Any]) -> Dict[str, Any]:
         """1.删除app 模板"""
-        result = cls.check_template_app_name(name)
+        result = AppEnvironmentService.check_environment_app_name(name)
         if not result:
             return {"code": 50000, "message": "Environment app delete failure", "status": True, "data": "failure"}
 

@@ -1,0 +1,5 @@
+---
+apiVersion: apps/v1
+kind: Ingress
+metadata:
+  name: my-nginx

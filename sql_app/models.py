@@ -1,8 +1,7 @@
 import datetime
-
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Boolean, Integer, String, Text, ForeignKey, DateTime, UniqueConstraint, Index, func
+
+from sqlalchemy.orm import declarative_base, relationship, Session
 
 from sqlalchemy_utc import utcnow
 import sys, os
@@ -182,17 +181,20 @@ class opsLog(Base):
                 "request": self.request, "response": self.response, "opsmethod": self.opsmethod, "run_time":
                     self.run_time}
 
+
 class Users(Base):
     __tablename__ = 'op_kube_manage_users'
     id = Column(Integer, primary_key=True)
     username = Column(String(64))
     password_hash = Column(String(1024), nullable=False)
     create_time = Column(DateTime, server_default=func.now(), comment="创建操作时间")
+
     @property
     def to_dict(self):
         return {"id": self.id, "username": self.username,
                 "password_hash": self.password_hash,
                 "create_time": self.create_time}
+
 
 class Template(Base):
     __tablename__ = 'op_kube_manage_template'
@@ -203,6 +205,7 @@ class Template(Base):
     language = Column(String(32), nullable=False)
     remark = Column(String(512), nullable=False)
     create_time = Column(DateTime, server_default=func.now(), comment="创建操作时间")
+
     @property
     def to_dict(self):
         return {"id": self.id, "name": self.name,
@@ -212,30 +215,61 @@ class Template(Base):
                 "remark": self.remark
                 }
 
+
 class AppTemplate(Base):
     __tablename__ = 'op_kube_manage_app_template'
     id = Column(Integer, primary_key=True)
     name = Column(String(64), nullable=False)
     used = Column(String(256), nullable=False)
-    cluster = Column(String(64), nullable=False)
-    env = Column(String(32), nullable=False)
-    deployment_id = Column(String(128), nullable=False)
-    service_id = Column(String(128), nullable=False)
-    ingress_id = Column(String(128), nullable=False)
-    uptime_time = Column(String(64), comment="更新时间")
-    create_time = Column(DateTime, server_default=func.now(), comment="创建时间")
+    environments = relationship('Environment', back_populates='app')
+    uptime_time = Column(String(256), nullable=False, comment="更新时间")
+    create_time = Column(DateTime, server_default=func.now(), comment="创建操作时间")
     @property
     def to_dict(self):
         return {"id": self.id,
                 "name": self.name,
                 "used": self.used,
-                "cluster": self.cluster,
-                "env": self.env,
-                "deployment_id": self.deployment_id,
-                "service_id":self.service_id,
-                "ingress_id": self.ingress_id,
-                "uptime_time": self.uptime_time
+                "environments": self.environments,
+                "self": self.uptime_time
                 }
+class Environment(Base):
+    # 定义和应用表的关联 环境表
+    __tablename__ = 'op_environment'
+    id = Column(Integer, primary_key=True)
+    name = Column(String(32), nullable=False)
+    cluster_id = Column(String(32), nullable=False)
+    ingress_id = Column(String(64), nullable=False)
+    service_id = Column(String(64), nullable=False)
+    deployment_id = Column(String(64), nullable=False)
+    app_id = Column(Integer, ForeignKey('op_kube_manage_app_template.id'), nullable=False)
+    app = relationship('AppTemplate', back_populates='environments')
+    uptime_time = Column(String(256), nullable=False, comment="更新时间")
+    create_time = Column(DateTime, server_default=func.now(), comment="创建操作时间")
+
+    @property
+    def to_dict(self):
+        return {"id": self.id,
+                "name": self.name,
+                "cluster_id": self.cluster_id,
+                "service_id": self.service_id,
+                "ingress_id": self.ingress_id,
+                "deployment_id": self.deployment_id,
+                "uptime_time": self.uptime_time,
+                "app_id": self.app_id
+                }
+
+
+#     # 定义和配置表的关联
+#     configurations = relationship('Configuration', back_populates='environment')
+#
+#
+# class Configuration(Base):
+#     __tablename__ = 'configuration'
+#     id = Column(Integer, primary_key=True)
+#     setting = Column(String(128), nullable=False)
+#     # 定义和环境表的关联
+#     environment_id = Column(Integer, ForeignKey('environment.id'), nullable=False)
+#     environment = relationship('Environment', back_populates='configurations')
 
 class DeployNsData(Base):
     __tablename__ = "op_kube_manage_ns_data"
@@ -248,7 +282,9 @@ class DeployNsData(Base):
 
     @property
     def to_dict(self):
-        return {"id": self.id,  "env": self.env,  "cluster_name": self.cluster_name, "ns_name": self.ns_name, "used": self.used, "create_time": self.create_time}
+        return {"id": self.id, "env": self.env, "cluster_name": self.cluster_name, "ns_name": self.ns_name,
+                "used": self.used, "create_time": self.create_time}
+
 
 def init_db():
     from database import engine

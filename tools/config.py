@@ -16,8 +16,9 @@ nacos_config = {"nacos_server_address": "http://localhost:8848",
                 "group": "DEFAULT_GROUP"
                 }
 
-queryClusterURL = "http://0.0.0.0:8888/v1/kube/config"
+queryClusterURL = "http://0.0.0.0:8080/v1/kube/config"
 
+queryAppTempleIdURl = "http://0.0.0.0:8080/api/app/template/"
 # K8S集群配置前端显示表头
 
 
@@ -50,11 +51,7 @@ usersHeader = [
 
 # 模板 前端显示表头
 templateHeader = [
-    # {"name": "id", "alias": "标识"},
     {"name": "name", "alias": "名称"},
-    # {"name": "t_type", "alias": "类型"},
-    # {"name": "content", "alias": "内容"},
-    # {"name": "language", "alias": "语言"},
     {"name": "remark", "alias": "用途"},
     {"name": "create_time", "alias": "创建时间"}
 ]
@@ -62,10 +59,21 @@ templateHeader = [
 
 # app模板 前端显示表头
 appTemplateHeader = [
-    # {"name": "id", "alias": "标识"},
     {"name": "name", "alias": "名称"},
     {"name": "used", "alias": "用途"},
     {"name": "uptime_time", "alias": "更新时间"},
+    {"name": "create_time", "alias": "创建时间"}
+]
+
+
+# env环境信息 前端显示表头
+environmentHeader = [
+    {"name": "name", "alias": "环境"},
+    {"name": "cluster_id", "alias": "集群"},
+    {"name": "ingress_id", "alias": "Ingress模版"},
+    {"name": "service_id", "alias": "Service模版"},
+    {"name": "deployment_id", "alias": "部署模版"},
+    {"name": "app_id", "alias": "App 模版名称"},
     {"name": "create_time", "alias": "创建时间"}
 ]
 # 定义支持模版查询的类型

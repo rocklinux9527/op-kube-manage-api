@@ -39,8 +39,11 @@ from schemas.k8s import postK8sRestartPodManager, postK8sPodManager, putK8sPodMa
 from schemas.template import templateManager, UpdateTemplateManager, deleteTemplateManager
 
 # 导入App系统模板数据结构
-from schemas.app_template import AddAppTemplateManager,UpdateAppTemplateManager,deleteAppTemplateManager
+from schemas.app_template import AddAppTemplateManager, UpdateAppTemplateManager, deleteAppTemplateManager
 
+# 导入 Environment系统模板数据结构
+
+from schemas.op_environment import AddEnvironmentManager, UpdateEnvironmentManager, DeleteAppEnvironmentManager
 # 导入系统用户数据结构
 from schemas.user import UserManager, updateUserManager, deleteUser
 from service.kube_config import kubeConfigService
@@ -68,7 +71,13 @@ from service.sys_template import TemplateService
 
 # import app template service
 from service.sys_app_template import AppTemplateService
+
+# import app environment service
+from service.sys_app_environment import AppEnvironmentService
+
 # import user service
+
+
 from service.sys_user import UserService
 from sql_app.database import engine
 # db ops kube service
@@ -76,7 +85,7 @@ from sql_app.kub_svc_db_play import query_kube_svc, query_kube_all_svc_name, que
 from sql_app.kube_cnfig_db_play import query_kube_config, \
     query_kube_db_env_cluster_all, query_kube_config_id, query_kube_db_env_all, query_kube_db_cluster_all, \
     query_kube_db_env_cluster_wrapper
-from sql_app.kube_deploy_db_play import query_kube_deployment,query_search_like_deploy,query_kube_deployment_v2
+from sql_app.kube_deploy_db_play import query_search_like_deploy, query_kube_deployment_v2
 # db ops kube ingress
 from sql_app.kube_ingress_db_play import query_kube_ingres, \
     query_kube_ingress_by_name
@@ -86,8 +95,12 @@ from sql_app.login_users import query_users, query_users_name
 # db ops deploy and kube config
 from sql_app.ops_log_db_play import query_operate_ops_log
 # ops temple
-from sql_app.ops_template import query_template,queryTemplateType
-from sql_app.ops_app_template import insert_db_app_template,updata_app_template,delete_db_app_template,query_Template_app_name,query_app_template
+from sql_app.ops_template import query_template, queryTemplateType
+from sql_app.ops_app_template import query_app_template, query_app_template_id_for_name
+
+# ops environment
+
+from sql_app.ops_environment import query_app_environment
 
 from tools.config import setup_logger
 
@@ -108,10 +121,7 @@ app = FastAPI(
 json_logging.init_fastapi(enable_json=True)
 json_logging.init_request_instrument(app)
 
-
 router = APIRouter()
-
-
 
 origins = ["*", "127.0.0.1:80"]
 app.add_middleware(
@@ -153,6 +163,7 @@ async def checkHarbor(host: Optional[str], version: Optional[str] = "v2"):
         return {"code": 50000, "data": "", "message": f'需要传递版本,仅支持{versionList}', "status": False}
     result = await check_harbor(host=host, version=version)
     return result
+
 
 @app.get("/api/check-kube-cluster", summary="K8S  kube cluster check ", tags=["ping"])
 async def check_k8s_kube_cluster(env: Optional[str], cluster_name: Optional[str]):
@@ -247,8 +258,9 @@ def get_namespace_plan(env: Optional[str], cluster: Optional[str]):
 
 
 @app.get("/api/v1/db/k8s/ns/plan/", summary="Get namespace App Plan", tags=["NamespaceKubernetes"])
-def get_db_namespace_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=100),ns_name: Optional[str] =None):
-    db_result = query_ns(ns_name,page, page_size)
+def get_db_namespace_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=100),
+                          ns_name: Optional[str] = None):
+    db_result = query_ns(ns_name, page, page_size)
     return db_result
 
 
@@ -303,7 +315,8 @@ def get_kube_pod_restart(request: Request, request_data: postK8sRestartPodManage
 @app.get("/api/v1/kube/pod/mock", summary="get Pod Mock k8s Plan", tags=["PodKubernetes"])
 def get_kube_mock_pod():
     from tools.config import k8sPodHeader
-    return {"code": 20000, "total": 0, "data": [], "messages": "query data success", "status": True, "columns": k8sPodHeader}
+    return {"code": 20000, "total": 0, "data": [], "messages": "query data success", "status": True,
+            "columns": k8sPodHeader}
 
 
 @app.post("/api/v1/kube/pod/", summary="Add POD K8S Plan", tags=["PodKubernetes"])
@@ -343,7 +356,8 @@ async def post_deploy_plan(request: Request, request_data: CreateDeployK8S) -> D
         raise HTTPException(status_code=400, detail="The cluster or environment does not exist")
     deployment_instance = kubeDeploymentService()
     deploy_instance_result = deployment_instance.create_deployment(env_name, cluster_name, data, user_request_data,
-                                                                   health_liven_ess_path, health_readiness_path, item_dict)
+                                                                   health_liven_ess_path, health_readiness_path,
+                                                                   item_dict)
     return deploy_instance_result
 
 
@@ -384,7 +398,8 @@ async def put_deploy_plan(request: Request, request_data: UpdateDeployK8S):
 
 
 @app.get("/api/v1/k8s/deployment/like", summary="Get deployment like App Plan", tags=["DeployKubernetes"])
-def get_app_name_like(app_name: str = Query(..., description="模糊查询名称"), page: int = Query(1, ge=1, description="页码"),
+def get_app_name_like(app_name: str = Query(..., description="模糊查询名称"),
+                      page: int = Query(1, ge=1, description="页码"),
                       page_size: int = Query(10, ge=1, description="每页条数")):
     if not (app_name):
         return {
@@ -396,12 +411,14 @@ def get_app_name_like(app_name: str = Query(..., description="模糊查询名称
     result_data = query_search_like_deploy(app_name, page, page_size)
     return result_data
 
+
 @app.get("/api/v1/k8s/deployment/plan/", summary="Get deployment App Plan", tags=["DeployKubernetes"])
 def get_deploy_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000), env: Optional[str] = None,
                     cluster: Optional[str] = None, app_name: Optional[str] = None,
                     image: Optional[str] = None, ports: Optional[str] = None,
                     image_pull_secrets: Optional[str] = None, deploy_id: Optional[int] = None):
-    result_data = query_kube_deployment_v2(page, page_size, env, cluster, app_name, image, ports, image_pull_secrets, deploy_id)
+    result_data = query_kube_deployment_v2(page, page_size, env, cluster, app_name, image, ports, image_pull_secrets,
+                                           deploy_id)
     return result_data
 
 
@@ -421,7 +438,8 @@ async def del_deploy_plan(request: Request, request_data: deleteDeployK8S):
             "data": "failure"
         }
     delete_deployment_instance = kubeDeploymentService()
-    delete_instance_result = delete_deployment_instance.delete_deployment(env_name, cluster_name, data, namespace_name, app_name,
+    delete_instance_result = delete_deployment_instance.delete_deployment(env_name, cluster_name, data, namespace_name,
+                                                                          app_name,
                                                                           user_request_data)
     return delete_instance_result
 
@@ -437,7 +455,8 @@ async def post_service_plan(request: Request, request_data: CreateSvcK8S):
             data.get('svc_port') and data.get('target_port')):
         return {'code': 1, 'messages': "If the parameter is insufficient, check it", "data": "", "status": False}
     create_service_instance = kubeServiceService()
-    create_instance_result = create_service_instance.create_service(env_name, cluster_name, data, item_dict, user_request_data)
+    create_instance_result = create_service_instance.create_service(env_name, cluster_name, data, item_dict,
+                                                                    user_request_data)
     return create_instance_result
 
 
@@ -476,7 +495,8 @@ def get_service_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0
                      svc_name: Optional[str] = None, selector_labels: Optional[str] = None,
                      svc_port: Optional[str] = None,
                      svc_type: Optional[str] = None, target_port: Optional[str] = None):
-    result_data = query_kube_svc(page, page_size, env, cluster_name, namespace, svc_name, selector_labels, svc_port, svc_type,
+    result_data = query_kube_svc(page, page_size, env, cluster_name, namespace, svc_name, selector_labels, svc_port,
+                                 svc_type,
                                  target_port)
     return result_data
 
@@ -490,7 +510,8 @@ def get_all_service_plan(env: Optional[str], cluster_name: Optional[str], namesp
 
 
 @app.get("/api/v1/k8s/service/svc-port/plan/", summary="Get ALL Service Port App Plan", tags=["ServiceKubernetes"])
-def get_all_service_port_plan(env: Optional[str], cluster_name: Optional[str], namespace: Optional[str], svc_name: Optional[str]):
+def get_all_service_port_plan(env: Optional[str], cluster_name: Optional[str], namespace: Optional[str],
+                              svc_name: Optional[str]):
     if not (env and cluster_name and namespace and svc_name):
         raise HTTPException(status_code=400, detail="Incorrect parameters")
     result_data = query_kube_all_svc_port(env, cluster_name, namespace, svc_name)
@@ -511,7 +532,8 @@ async def delete_service_plan(ReQuest: Request, request_data: deleteSvcK8S):
     if not (env_name and cluster_name):
         raise HTTPException(status_code=400, detail="Incorrect cluster or env parameters")
     delete_service_instance = kubeServiceService()
-    delete_instance_result = delete_service_instance.delete_service(app_id, env_name, cluster_name, namespace_name, svc_name,
+    delete_instance_result = delete_service_instance.delete_service(app_id, env_name, cluster_name, namespace_name,
+                                                                    svc_name,
                                                                     userRequestData)
     return delete_instance_result
 
@@ -574,7 +596,8 @@ def get_ingress_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0
                      ingress_name: Optional[str] = None, host: Optional[str] = None,
                      svc_name: Optional[str] = None, svc_port: Optional[str] = None, tls: Optional[str] = None,
                      tls_secret: Optional[str] = None):
-    result_data = query_kube_ingres(page, page_size, env, cluster_name, namespace, ingress_name, host, svc_name, svc_port, tls,
+    result_data = query_kube_ingres(page, page_size, env, cluster_name, namespace, ingress_name, host, svc_name,
+                                    svc_port, tls,
                                     tls_secret)
     return result_data
 
@@ -582,7 +605,7 @@ def get_ingress_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0
 @app.get("/api/v1/k8s/sys/ns-by-ingress/", summary="Get sys Ingress App Plan", tags=["IngressKubernetesSys"])
 def get_ns_by_ingress_plan(env: Optional[str] = None, cluster_name: Optional[str] = None,
                            namespace: Optional[str] = None):
-    k8s_instance = k8sIngressManager(cluster_name,namespace)
+    k8s_instance = k8sIngressManager(cluster_name, namespace)
     ns_result = k8s_instance.get_kube_ingress_by_name()
     return ns_result
 
@@ -610,7 +633,8 @@ async def delete_ingress_plan(request: Request, request_data: deleteIngressK8S):
     return delete_instance_result
 
 
-@app.post("/api/user/login/", summary="用户登录验证，如果成功返回用户 token，否则返回 HTTP 401 错误", tags=["sys-login-user"])
+@app.post("/api/user/login/", summary="用户登录验证，如果成功返回用户 token，否则返回 HTTP 401 错误",
+          tags=["sys-login-user"])
 def login(request: Request, request_data: UserManager):
     data = request_data.dict()
     username = data.get("username")
@@ -709,6 +733,7 @@ def get_template_plan(q_type: str = "all", page: int = Query(1, gt=0), page_size
         result_data = queryTemplateType(q_type, page, page_size)
     return result_data
 
+
 @app.post("/api/template", summary="模板自定义模板", tags=["sys-template"])
 def save_template(request_data: templateManager):
     data = request_data.dict()
@@ -737,7 +762,8 @@ async def put_temple_update(request: Request, request_data: UpdateTemplateManage
     if not (ID and name and content and type and language and remark):
         raise HTTPException(status_code=400, detail="Missing parameter")
     app_temple_instance = AppTemplateService()
-    result = app_temple_instance.update_controller_app_template(ID, name, content, language, type, remark, user_request_data)
+    result = app_temple_instance.update_controller_app_template(ID, name, content, language, type, remark,
+                                                                user_request_data)
     return result
 
 
@@ -753,8 +779,10 @@ async def delete_temple(request: Request, request_data: deleteTemplateManager):
     if not (ID and name):
         raise HTTPException(status_code=400, detail="Missing parameter")
     app_temple_instance = AppTemplateService()
-    result = app_temple_instance.delete_controller_app_template(ID, name, content, language, type, remark, user_request_data)
+    result = app_temple_instance.delete_controller_app_template(ID, name, content, language, type, remark,
+                                                                user_request_data)
     return result
+
 
 @app.get("/api/template/download/", summary="template download  Plan", tags=["sys-template"])
 async def download_file(name: Optional[str], language: Optional[str]):
@@ -769,27 +797,27 @@ async def download_file(name: Optional[str], language: Optional[str]):
 def get_app_template_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000)):
     return query_app_template(page, page_size)
 
+
+@app.get("/api/app/template/{id}", summary="query app template id ", tags=["sys-app-template"])
+def get_app_template_id(id: int):
+    if not id:
+        raise HTTPException(status_code=40000, detail="Missing parameter")
+    return query_app_template_id_for_name(id)
+
+
 @app.post("/api/app/template", summary="app模板模板", tags=["sys-app-template"])
 async def save_app_template(request_data: AddAppTemplateManager):
     """
-    1.检查是否有任何必需的参数缺失.
-    2.初始化一个空列表以存储转换后的数据.
-    3.遍历 test、pre 和 prod 字典
-    4.创建一个新字典，包含 "env" 键和对应 item_data 的值
-
     :param request_data:
     :return:
     """
     if not all(request_data.dict().values()):
         raise HTTPException(status_code=400, detail="Missing parameter")
-    transformed_data = []
-    for env, item_data in [("test", request_data.test), ("pre", request_data.pre), ("prod", request_data.prod)]:
-        new_data = {"env": env, **item_data.dict()}
-        transformed_data.append(new_data)
-    resultAppTemplateData = AppTemplateService.save_data_to_database(transformed_data)
+
+    data = request_data.dict()
+    AppTemplateData = AppTemplateService()
+    resultAppTemplateData = AppTemplateData.add_controller_app_template(data.get("name"), data.get("used"))
     return resultAppTemplateData
-    # #result = app_temple_instance.add_controller_app_template(name, content, language, type, remark)
-    # return {"code": 20000,"data":"success"}
 
 
 @app.put("/api/app/template", summary="App Template Update Plan", tags=["sys-app-template"])
@@ -797,15 +825,12 @@ async def put_temple_app_update(request: Request, request_data: UpdateAppTemplat
     data = request_data.dict()
     user_request_data = await request.json()
     name = data.get("name")
-    content = data.get("content")
-    type = data.get("t_type")
-    language = data.get("language")
-    remark = data.get("remark")
+    used = data.get("used")
     ID = data.get("id")
-    if not (ID and name and content and type and language and remark):
+    if not (ID and name and used):
         raise HTTPException(status_code=400, detail="Missing parameter")
     app_temple_instance = AppTemplateService()
-    result = app_temple_instance.update_controller_app_template(ID, name, content, language, type, remark, user_request_data)
+    result = app_temple_instance.update_controller_app_template(ID, name, used, user_request_data)
     return result
 
 
@@ -814,17 +839,82 @@ async def delete_app_temple(request: Request, request_data: deleteAppTemplateMan
     data = request_data.dict()
     user_request_data = await request.json()
     name = data.get("name")
-    content = data.get("content")
-    language = data.get("language")
-    remark = data.get("remark")
     ID = data.get("id")
     if not (ID and name):
         raise HTTPException(status_code=400, detail="Missing parameter")
     app_temple_instance = AppTemplateService()
-    result = app_temple_instance.delete_controller_app_template(ID, name, content, language, type, remark, user_request_data)
+    result = app_temple_instance.delete_controller_app_template(ID, name, user_request_data)
     return result
 
-@app.get("/api/image", summary="images  query", tags=["sys-image"])
+
+@app.get("/api/app/environment", summary="query app environment", tags=["sys-app-environment"])
+def get_app_environment_plan(page: int = Query(1, gt=0), page_size: int = Query(10, gt=0, le=1000)):
+    return query_app_environment(page, page_size)
+
+
+@app.post("/api/app/environment", summary="env环境设置创建", tags=["sys-app-environment"])
+async def save_app_environment(request_data: AddEnvironmentManager):
+    """
+    :param request_data:
+    :return:
+    """
+    if not all(request_data.dict().values()):
+        raise HTTPException(status_code=400, detail="Missing parameter")
+
+    data = request_data.dict()
+    AppEnvironmentData = AppEnvironmentService()
+    resultAppEnvData = AppEnvironmentData.add_controller_app_environment(
+        data.get("name"),
+        data.get("cluster_id"),
+        data.get("ingress_id"),
+        data.get("service_id"),
+        data.get("deployment_id"),
+        data.get("app_id")
+    )
+    return resultAppEnvData
+
+
+@app.put("/api/app/environment", summary="env环境更新设置", tags=["sys-app-environment"])
+async def put_environment_app_update(request: Request, request_data: UpdateEnvironmentManager):
+    data = request_data.dict()
+    user_request_data = await request.json()
+    ID = data.get("id")
+    cluster_id = data.get("cluster_id")
+    name = data.get("name")
+    service_id = data.get("service_id")
+    ingress_id = data.get("ingress_id")
+    deployment_id = data.get("deployment_id")
+    app = data.get("app_id")
+
+    if not (ID, cluster_id, name, service_id, ingress_id, deployment_id, app):
+        raise HTTPException(status_code=400, detail="Missing parameter")
+    app_environment_instance = AppEnvironmentService()
+    result = app_environment_instance.update_controller_app_environment(
+        ID,
+        name,
+        cluster_id,
+        ingress_id,
+        service_id,
+        deployment_id,
+        app,
+        user_request_data)
+    return result
+
+
+@app.delete("/api/app/environment", summary="env环境删除", tags=["sys-app-environment"])
+async def delete_app_environment(request: Request, request_data: DeleteAppEnvironmentManager):
+    data = request_data.dict()
+    user_request_data = await request.json()
+    name = data.get("name")
+    ID = data.get("id")
+    if not (ID and name):
+        raise HTTPException(status_code=400, detail="Missing parameter")
+    app_env_instance = AppEnvironmentService()
+    result = app_env_instance.delete_controller_app_environment(ID, name, user_request_data)
+    return result
+
+
+@app.get("/api/image", summary="images query", tags=["sys-image"])
 async def queryHarbor(project_name: Optional[str], app_name: Optional[str], repo_type: Optional[str] = None):
     if not (project_name and app_name):
         raise HTTPException(status_code=50000, detail="Missing parameter")

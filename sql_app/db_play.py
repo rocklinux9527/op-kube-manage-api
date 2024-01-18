@@ -2,6 +2,7 @@ from sqlalchemy.orm import sessionmaker, query
 from sql_app.database import engine
 from sql_app.models import *
 
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -84,3 +85,4 @@ def model_delete(model, id):
 
     else:
         return {"code": 50000, "messages": "id is none failure", "status": False, "data": "failure"}
+

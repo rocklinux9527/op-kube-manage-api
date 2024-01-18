@@ -3,7 +3,6 @@ from sql_app.models import AppTemplate
 from sqlalchemy.orm import sessionmaker
 from sql_app.database import engine
 
-
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 from fastapi.encoders import jsonable_encoder
 from tools.config import appTemplateHeader
@@ -16,7 +15,7 @@ HOME_DIR = os.path.split(os.path.split(HERE)[0])[0]
 LOG_DIR = os.path.join(HOME_DIR, "logs")
 
 
-def insert_db_app_template( name, used, cluster, env, deployment_id, service_id, ingress_id, uptime_time):
+def insert_db_app_template(name, used, uptime_time):
     """
     1.新增入库参数
     :param ns_name:
@@ -26,22 +25,12 @@ def insert_db_app_template( name, used, cluster, env, deployment_id, service_id,
     fildes = {
         "name": "name",
         "used": "used",
-        "cluster": "cluster",
-        "env": "env",
-        "deployment_id": "deployment_id",
-        "service_id": "service_id",
-        "ingress_id": "ingress_id",
         "uptime_time": "uptime_time"
     }
 
     request_data = {
         "name": name,
         "used": used,
-        "cluster": cluster,
-        "env": env,
-        "deployment_id": deployment_id,
-        "service_id": service_id,
-        "ingress_id": ingress_id,
         "uptime_time": uptime_time
     }
     return model_create(AppTemplate, request_data, fildes)
@@ -53,30 +42,20 @@ def delete_db_app_template(Id):
     :param Id:
     :return:
     """
-    return model_delete(appTemplateHeader, Id)
+    return model_delete(AppTemplate, Id)
 
 
-def updata_app_template(Id, name, used, cluster, env, deployment_id,service_id,ingress_id,uptime_time):
+def updata_app_template(Id, name, used, uptime_time):
     fildes = {
         "name": "name",
         "used": "used",
-        "env": "env",
-        "cluster": "cluster",
-        "deployment_id": "deployment_id",
-        "service_id": "service_id",
-        "ingress_id": "ingress_id",
         "uptime_time": "uptime_time"
     }
 
     request_data = {
         "name": name,
         "used": used,
-         "env": env,
-         "cluster": cluster,
-         "deployment_id": deployment_id,
-         "service_id": service_id,
-         "ingress_id": ingress_id,
-         "uptime_time": uptime_time
+        "uptime_time": uptime_time,
     }
     return model_updateId(AppTemplate, Id, request_data, fildes)
 
@@ -101,6 +80,48 @@ def query_app_template(page: int = 1, page_size: int = 10):
     finally:
         session.commit()
         session.close()
+
+
+def updata_app_template(Id, name, used, uptime_time):
+    fildes = {
+        "name": "name",
+        "used": "used",
+        "uptime_time": "uptime_time"
+    }
+
+    request_data = {
+        "name": name,
+        "used": used,
+        "uptime_time": uptime_time,
+    }
+    return model_updateId(AppTemplate, Id, request_data, fildes)
+
+
+def query_app_template_id_for_name(Id):
+    """
+    查询指定ID的AppTemplate数据
+    :param id: AppTemplate的ID
+    :return: JSON格式的响应
+    """
+    session = SessionLocal()
+    data = session.query(AppTemplate)
+    data = data.filter_by(id=Id)
+    if len([i.to_dict for i in data]) >= 1:
+        try:
+            return {"code": 20000, "total": len([i.to_dict for i in data]),
+                    "data": jsonable_encoder(data.all()),
+                    "messages": "query data  success", "status": True, "columns": appTemplateHeader}
+        except Exception as e:
+            print(e)
+            session.commit()
+            session.close()
+            return {"code": 50000, "total": 0, "data": "", "messages": "query fail", "status": True,
+                    "columns": appTemplateHeader}
+        finally:
+            session.close()
+    else:
+        return {"code": 20000, "total": 0, "data": "template name not is data null",
+                "messages": "query data fail ", "status": True, "columns": appTemplateHeader}
 
 
 def queryTemplateType(q_type, page, page_size):

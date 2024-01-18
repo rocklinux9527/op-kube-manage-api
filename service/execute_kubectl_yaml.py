@@ -217,6 +217,6 @@ def exec_kube_main(src_file_path, dest_file_path, namespace="default", name=None
         return kubectl_executor.execute_kubectl_apply()
 
 
-rest = exec_kube_main("./yaml/template_deployment.yaml",
-                      "./yaml/nginx_new.yaml", "ops")
+rest = exec_kube_main("/Users/li/PycharmProjects/op-kube-manage-api-dp/yaml/template_deployment.yaml",
+                      "/Users/li/PycharmProjects/op-kube-manage-api-dp/yaml/nginx_new.yaml", "ops")
 print(rest)

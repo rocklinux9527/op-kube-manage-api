@@ -255,9 +255,9 @@ class Environment(Base):
                 "ingress_id": self.ingress_id,
                 "deployment_id": self.deployment_id,
                 "uptime_time": self.uptime_time,
-                "app_id": self.app_id
+                "app_id": self.app_id,
+                "app_name": self.app.name
                 }
-
 
 #     # 定义和配置表的关联
 #     configurations = relationship('Configuration', back_populates='environment')

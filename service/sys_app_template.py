@@ -66,7 +66,7 @@ class AppTemplateService:
     @classmethod
     def delete_controller_app_template(cls, ID: int, name: str, user_request_data: Dict[str, Any]) -> Dict[str, Any]:
         """1.删除app 模板"""
-        result = cls.check_template_app_name(name)
+        result = AppTemplateService.check_template_app_name(name)
         if not result:
             return {"code": 50000, "message": "template app delete failure", "status": True, "data": "failure"}
 

@@ -3,6 +3,12 @@ from sql_app.models import AppTemplate
 from sqlalchemy.orm import sessionmaker
 from sql_app.database import engine
 
+from typing import Dict, Any, Union, List
+from sql_app.ops_log_db_play import insert_ops_bot_log
+import json
+
+
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 from fastapi.encoders import jsonable_encoder
 from tools.config import appTemplateHeader
@@ -43,6 +49,40 @@ def delete_db_app_template(Id):
     :return:
     """
     return model_delete(AppTemplate, Id)
+
+def delete_app_template(template_id: int, user_request_data: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        session = SessionLocal()
+        app_template = session.query(AppTemplate).get(template_id)
+        if app_template and app_template.environments:
+            related_env_data = [
+                {
+                    "env_id": env.id,
+                    "name": env.name,
+                    "cluster_id": env.cluster_id,
+                    "ingress_id": env.ingress_id,
+                    "service_id": env.service_id,
+                    "deployment_id": env.deployment_id,
+                    "app_id": env.app_id,
+                    "uptime_time": env.uptime_time,
+                    "create_time": env.create_time
+                }
+                for env in app_template.environments
+            ]
+            return {"code": 50000, "message": "存在关联的环境表数据，请先删除相关数据", "status": True,
+                    "data": related_env_data}
+
+        result = delete_db_app_template(template_id)
+        if result.get("code") == 20000:
+            insert_ops_bot_log("Delete App Template success", json.dumps(user_request_data), "post",
+                               json.dumps(result))
+        return result
+    except Exception as e:
+        print(f"Error deleting app template: {e}")
+        return {"code": 50000, "message": "删除失败", "status": False, "data": None}
+    finally:
+        # 记得关闭 session
+        session.close()
 
 
 def updata_app_template(Id, name, used, uptime_time):

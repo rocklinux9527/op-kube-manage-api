@@ -73,7 +73,7 @@ environmentHeader = [
     {"name": "ingress_id", "alias": "Ingress模版"},
     {"name": "service_id", "alias": "Service模版"},
     {"name": "deployment_id", "alias": "部署模版"},
-    {"name": "app_id", "alias": "App 模版名称"},
+    # {"name": "app_id", "alias": "App 模版名称"},
     {"name": "create_time", "alias": "创建时间"}
 ]
 # 定义支持模版查询的类型
